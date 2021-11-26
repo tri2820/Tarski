@@ -36,22 +36,62 @@ testTree : Tree
 testTree = Fork 
   (Fork 
     (Atom "A")
-    (Var "x")
+    (Fork
+      (Atom "D")
+      (Atom "M")
+    )
   )
 
   (Fork 
     (Fork 
-      (Atom "B")
-      (Var "x")
+      (Atom "D")
+      (Atom "M")
     )
     
     (Fork 
       (Atom "C")
       (Fork 
         (Atom "V")
-        (Var "y")
+        (Fork 
+          (Var "y")
+          (Fork 
+            (Var "z")
+            (Var "w")
+          )
+        )
       )
     )
+  )
+
+treePattern : Tree
+treePattern = Fork 
+  (Fork 
+    (Atom "A")
+    (Var "x")
+  )
+
+  (Fork 
+    (Var "x")
+    
+    (Fork 
+      (Atom "C")
+      (Var "k")
+    )
+  )
+
+treeToBeReplaced : Tree
+treeToBeReplaced = Fork
+  (Fork 
+    (Fork 
+      (Atom "Head")
+      (Var "y")
+    )
+    (Var "x")
+  )
+
+  (Fork 
+    (Atom "Tail")
+    (Var "k")
   )
 
 init : Model
@@ -106,28 +146,8 @@ update msg model = model
 
 -- VIEW
 
-bootstrapStylesheet =
-    let
-        tag = "link"
-        attrs =
-            [ attribute "rel"       "stylesheet"
-            , attribute "href"      "//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"
-            ]
-        children = []
-    in 
-        node tag attrs children
-
-customStylesheet =
-    let
-        tag = "link"
-        attrs =
-            [ attribute "rel"       "stylesheet"
-            , attribute "href"      "custom.css"
-            ]
-        children = []
-    in 
-        node tag attrs children
-
+customStylesheet : Html msg
+customStylesheet = node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css"] []
 
 display : Tree -> Html Msg
 display tree = case tree of 
@@ -138,11 +158,29 @@ display tree = case tree of
       Atom _ -> span [ class "markHover" ] [text "(", content, text ")"]
       _ -> content
 
+project : Dict String Tree -> Tree -> Tree
+project d t = case t of
+    (Atom _) -> t
+    (Fork a b) -> Fork (project d a) (project d b)
+    (Var v) -> case Dict.get v d of 
+      Nothing -> Var v
+      Just varTree -> varTree
+
+type RespondResult = Result Tree | Err String
+respond : Tree -> Tree -> Tree -> RespondResult
+respond pattern input replaced = case match pattern input of
+  Match d -> Result (project d replaced)
+  InvalidMatch t1 t2 -> Err ("Cannot match" ++ (print t1) ++ "with" ++ (print t2))
+  VariableCollision v t1 t2 -> Err ("Variable" ++ v ++ "is set to both" ++ (print t1) ++ "and" ++ (print t2))
 
 view : Model -> Html Msg
 view model =
+  let 
+    res = respond treePattern testTree treeToBeReplaced
+    _ = Debug.log "original tree" treeToBeReplaced
+    _ = Debug.log "after tree" res
+  in
     div []
       [ 
       div [] [ customStylesheet, display model ]
-      -- div [] [ text (Debug.toString (match testTree7 testTree8)) ]
       ]
