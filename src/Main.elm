@@ -8,10 +8,14 @@ module Main exposing (..)
 
 
 import Browser
-import Html exposing (Html, button, div, text)
+import Html exposing (Html, button, div, text, span)
 import Html.Events exposing (onClick)
+import Html.Attributes exposing (class)
 import Dict exposing (Dict)
 import Maybe.Extra
+import Html.Attributes exposing (attribute)
+import Html exposing (node)
+import Html exposing (mark)
 
 -- MAIN
 
@@ -30,90 +34,28 @@ type Tree = Var String | Atom String | Fork Tree Tree
 
 testTree : Tree
 testTree = Fork 
-  (Atom "D")
-  (Fork
-    (Fork
-      (Atom "B")
-      (Fork
-        (Var "x")
-        (Var "y")
-      )
-    )
-    (Fork
-      (Atom "A")
-      (Fork
-        (Var "x")
-        (Var "y")
-      )
-    )
-  )
-
-testTree2 : Tree
-testTree2 = Fork
-  (Atom "K")
-  (Fork
-    (Atom "G")
+  (Fork 
+    (Atom "A")
     (Var "x")
   )
 
-testTree3 : Tree
-testTree3 = Fork
-  (Atom "K")
-  (Fork
-    (Fork
-      (Atom "G")
+  (Fork 
+    (Fork 
+      (Atom "B")
       (Var "x")
     )
-    (Fork
-      (Fork
-        (Atom "M")
+    
+    (Fork 
+      (Atom "C")
+      (Fork 
+        (Atom "V")
         (Var "y")
       )
-      (Var "z")
     )
   )
-  
-testTree4 = Fork 
-  (Atom "K")
-  (Fork
-    (Atom "G")
-    (Fork
-      (Atom "M")
-      (Var "y")
-    )
-  )
-
-testTree5 = Fork 
-  (Atom "K")
-  (Fork
-    (Fork
-      (Atom "M")
-      (Var "y")
-    )
-    (Atom "G")
-  )
-
-testTree6 = Fork 
-  (Atom "K")
-  (Var "x")
-
-testTree7 = Fork 
-  (Atom "K")
-  (Fork
-    (Var "x")
-    (Var "y")
-  )
-
-testTree8 = Fork 
-  (Atom "K")
-  (Fork
-    (Var "x")
-    (Var "x")
-  )
-
 
 init : Model
-init = testTree5
+init = testTree
 
 print : Tree -> String
 print tree = case tree of 
@@ -150,7 +92,6 @@ match p a = case p of
           (err, _) -> err
     _ -> InvalidMatch p a
 
-
 -- UPDATE
 
 type Msg
@@ -165,11 +106,43 @@ update msg model = model
 
 -- VIEW
 
+bootstrapStylesheet =
+    let
+        tag = "link"
+        attrs =
+            [ attribute "rel"       "stylesheet"
+            , attribute "href"      "//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"
+            ]
+        children = []
+    in 
+        node tag attrs children
+
+customStylesheet =
+    let
+        tag = "link"
+        attrs =
+            [ attribute "rel"       "stylesheet"
+            , attribute "href"      "custom.css"
+            ]
+        children = []
+    in 
+        node tag attrs children
+
+
+display : Tree -> Html Msg
+display tree = case tree of 
+  Atom s -> text s
+  Var v -> text v
+  Fork l r -> let content = span [] [display l, text " ", display r]
+    in case l of 
+      Atom _ -> span [ class "markHover" ] [text "(", content, text ")"]
+      _ -> content
+
 
 view : Model -> Html Msg
 view model =
-  div []
-    [ 
-    -- div [] [ text (print model) ]
-    div [] [ text (Debug.toString (match testTree7 testTree8)) ]
-    ]
+    div []
+      [ 
+      div [] [ customStylesheet, display model ]
+      -- div [] [ text (Debug.toString (match testTree7 testTree8)) ]
+      ]

@@ -1,0 +1,7 @@
+.markHover {
+    background-color: transparent;
+}
+
+.markHover:hover {
+    background-color: yellow;
+}
