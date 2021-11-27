@@ -256,6 +256,8 @@ display red tree =
         in 
           case l of
             Atom _ -> Bracket (span [clickToReduce red, class "markHover" ] ([keepwrap left,  text " ",  keepwrap right]))
+            -- Represent both the collection in atom and morphism with Fork, so cannot have nice <-
+            -- Is not logically inconsistent because we cannot click inside atoms, only match the whole 
             Fork _ _ -> Bracket (span [clickToReduce red, class "markHover" ] ([keepwrap left, text " ", keepwrap right]))
             Var _ -> NoBracket (span [clickToReduce red] ([keepwrap left, text " ", keepwrap right ]))
 
