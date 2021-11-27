@@ -1,27 +1,13 @@
 module Main exposing (..)
 
--- Press buttons to increment and decrement a counter.
---
--- Read how it works:
---   https://guide.elm-lang.org/architecture/buttons.html
---
-
-
 import Browser
-import Html exposing (Html, button, div, text, span)
+import Html exposing (Html, div, text, span, node, p)
 import Html.Events exposing (onClick)
 import Html.Attributes exposing (class)
 import Dict exposing (Dict)
 import Maybe.Extra
 import Html.Attributes exposing (attribute)
-import Html exposing (node)
-import Html exposing (mark)
-import Html exposing (p)
-import Html exposing (pre)
-import Html exposing (code)
 import Html.Attributes.Extra exposing (empty)
-import Tuple exposing (first)
-import Either exposing (unpack)
 -- MAIN
 
 
@@ -188,6 +174,11 @@ print tree = case tree of
       _ -> content
 
 type MatchResult = Match (Dict String Tree) | InvalidMatch Tree Tree | VariableCollision String Tree Tree
+collision : a -> a -> Maybe (a, a)
+collision v other_v = if other_v == v then Nothing else Just (other_v, v)
+findInDict : Dict comparable c -> comparable -> c -> Maybe (c, c)
+findInDict d k v = Dict.get k d |> Maybe.andThen (collision v)
+
 match : Tree -> Tree -> MatchResult
 match p a = case p of 
   Var v -> Match (Dict.singleton v a)
@@ -199,10 +190,7 @@ match p a = case p of
           (Match l_dict, Match r_dict) ->
             let
               union = Dict.union l_dict r_dict
-              dictMaybeCollisions = Dict.map (\k -> \v -> case Dict.get k union of
-                  Just other_v -> if other_v == v then Nothing else Just (other_v, v)
-                  Nothing -> Nothing
-                 ) r_dict
+              dictMaybeCollisions =  Dict.map (findInDict union) r_dict 
               maybeCollisions = Dict.toList dictMaybeCollisions
               collisions = List.filter (\(_,v) -> Maybe.Extra.isJust v) maybeCollisions
               result = case collisions of
@@ -270,7 +258,7 @@ displayTree tree  =
       let content = [displayTree left , text " ", displayTree right] in case bracket of 
         WithBracket ->  text "(" :: content ++ [text ")"] |> htmlBlock red
         WithoutBracket -> content |> htmlBlock red
-    
+            
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
     (Atom _) -> t
