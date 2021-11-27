@@ -19,6 +19,8 @@ import Html exposing (mark)
 import Html exposing (p)
 import Html exposing (pre)
 import Html exposing (code)
+import Html.Attributes.Extra exposing (empty)
+import Tuple exposing (first)
 
 -- MAIN
 
@@ -142,8 +144,25 @@ clickTree2 = Fork
     (Var "k")
   )
 
+clickTree3 : Tree 
+clickTree3 = Fork
+  (Atom "A")
+
+  (Fork
+    (Fork
+      (Atom "B")
+      (Var "x")
+    )
+
+    (Fork
+      (Atom "C")
+      (Var "y")
+    )
+  )
+
+
 init : Model
-init = (ModeNoSelected, [testTree, testTree, clickTree, clickTree2])
+init = (ModeNoSelected, [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3 ])
 
 print : Tree -> String
 print tree = case tree of 
@@ -197,25 +216,48 @@ update msg model =
 
 -- VIEW
 
-type Reducibility = Reducible | Irreducible
-display : Reducibility -> Tree -> Html Msg
-display reducibility tree = case tree of 
-  Atom s -> text s
-  Var v -> text v
-  Fork l r -> 
-    let 
-      childReducibility = case reducibility of 
-        Irreducible  -> Irreducible
-        Reducible -> case l of 
-          Atom _ -> Irreducible
-          _ -> Reducible
-      clickToReduce = case reducibility of 
-        Reducible -> [class "clickToReduce"]
-        Irreducible -> []
-    in case l of
-      Atom _ -> span (clickToReduce ++ [ class "markHover" ]) [text "(", display childReducibility l, text " ", display childReducibility r, text ")"]
-      Fork _ _ -> span (clickToReduce ++ [ class "markHover" ]) [text "(", display childReducibility l, text "<-", display childReducibility r, text ")"]
-      _ -> span [] [display childReducibility l, text " ", display childReducibility r]
+unwrap : DisplayType -> Html Msg
+unwrap = \s -> case s of 
+  Bracket v -> v
+  NoBracket v -> v
+
+type Reducibility = Atomic | Head | Tail
+keepwrap : DisplayType -> Html Msg
+keepwrap = \s -> case s of
+        Bracket v -> span [] [text "(", v, text ")"]
+        NoBracket v -> span [] [v]
+    
+clickToReduce : Reducibility -> Html.Attribute msg
+clickToReduce = \red -> case red of 
+            Tail -> class "clickToReduce"
+            _ -> empty
+
+type DisplayType = Bracket (Html Msg) | NoBracket (Html Msg)
+display : Reducibility -> Tree -> DisplayType
+display red tree = 
+  case tree of 
+      Atom s -> NoBracket (span [clickToReduce red] [text s])
+      Var v -> NoBracket (span [clickToReduce red] [text v])
+      Fork l r -> 
+        let           
+          isoRed = case red of
+            Atomic -> Atomic 
+            _ -> case l of
+              Atom _ -> Atomic
+              _ -> red
+            
+
+          (lRed, rRed) = case isoRed of
+            Atomic -> (Atomic, Atomic)
+            _ -> (Head, Tail)
+
+          left = display lRed l
+          right = display rRed r
+        in 
+          case l of
+            Atom _ -> Bracket (span [clickToReduce red, class "markHover" ] ([keepwrap left,  text " ",  keepwrap right]))
+            Fork _ _ -> Bracket (span [clickToReduce red, class "markHover" ] ([unwrap left, text "<- ", keepwrap right]))
+            Var _ -> NoBracket (span [clickToReduce red] ([keepwrap left, text " ", keepwrap right ]))
 
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
@@ -239,7 +281,7 @@ view model =
     -- _ = Debug.log "original tree" treeToBeReplaced
     -- _ = Debug.log "after tree" res
     (mode, trees) = model
-    treeDivs = List.map (display Reducible >> \s -> div [ class "line" ] [s])  trees
+    treeDivs = List.map (display Head >> unwrap >> \s -> div [ class "line" ] [s])  trees
     barText = case mode of
        ModeNoSelected -> "SELECT a line as material"
        ModeSelect _ -> "MATCH a block to create a new theorem"
