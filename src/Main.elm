@@ -202,7 +202,8 @@ match p a = case p of
     _ -> InvalidMatch p a
 
 -- UPDATE
-type Msg = Unit
+type Line = Line Tree
+type Msg = TreeClicked Tree Line
 
 
 update : Msg -> Model -> Model
@@ -220,19 +221,19 @@ clickToReduce = \red -> case red of
             _ -> empty
 
 type DisplayBracket = WithBracket | WithoutBracket
-type DisplayTree = Node Reducibility String  | Branch Reducibility DisplayBracket DisplayTree DisplayTree 
+type DisplayTree = Node Reducibility String Tree | Branch Reducibility DisplayBracket DisplayTree DisplayTree Tree
 
 -- There could be a better container type for Bracket but whatever
 unBracket : DisplayTree -> DisplayTree
 unBracket dtree = case dtree of
-  Node red s -> Node red s
-  Branch red _ l r -> Branch red WithoutBracket l r
+  Node red s t -> Node red s t
+  Branch red _ l r t -> Branch red WithoutBracket l r t
 
 display : Reducibility -> Tree -> DisplayTree
 display red tree = 
   case tree of 
-      Atom s -> Node red s
-      Var v -> Node red v
+      Atom s -> Node red s tree
+      Var v -> Node red v tree
       Fork l r -> 
         let           
           morphismRed = case l of
@@ -245,19 +246,19 @@ display red tree =
           bracket = case l of
              Var _ -> WithoutBracket
              _ -> WithBracket
-        in Branch red bracket (display lRed l) (display rRed r)
+        in Branch red bracket (display lRed l) (display rRed r) tree
 
 -- There could be a better container type for Reducibility but whatever
-displayTree : DisplayTree -> Html msg
-displayTree tree  = 
+displayTree : Line -> DisplayTree -> Html Msg
+displayTree line tree = 
   let
-    htmlBlock = \red -> span [ clickToReduce red, class "markHover" ]
+    htmlBlock = \red -> \t -> span [ clickToReduce red, class "markHover", onClick (TreeClicked t line) ]
   in case tree of
-    Node red s -> [text s] |> htmlBlock red
-    Branch red bracket left right -> 
-      let content = [displayTree left , text " ", displayTree right] in case bracket of 
-        WithBracket ->  text "(" :: content ++ [text ")"] |> htmlBlock red
-        WithoutBracket -> content |> htmlBlock red
+    Node red s t -> [text s] |> htmlBlock red t
+    Branch red bracket left right t -> 
+      let content = [displayTree line left, text " ", displayTree line right ] in case bracket of 
+        WithBracket ->  text "(" :: content ++ [text ")"] |> htmlBlock red t
+        WithoutBracket -> content |> htmlBlock red t
             
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
@@ -278,7 +279,8 @@ view : Model -> Html Msg
 view model =
   let 
     (mode, trees) = model
-    treeDivs = List.map (display Head >> unBracket >> displayTree >> \s -> div [ class "line" ] [s])  trees
+    toDiv = \t -> t |> display Head >> unBracket >> displayTree (Line t) >> \s -> div [ class "line" ] [s]
+    treeDivs = trees |> List.map toDiv
     barText = case mode of
       ModeNoSelected -> "SELECT a line as material"
       ModeSelect _ -> "MATCH a block to create a new theorem"
