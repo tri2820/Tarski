@@ -21,7 +21,7 @@ import Html exposing (pre)
 import Html exposing (code)
 import Html.Attributes.Extra exposing (empty)
 import Tuple exposing (first)
-
+import Either exposing (unpack)
 -- MAIN
 
 
@@ -160,9 +160,23 @@ clickTree3 = Fork
     )
   )
 
+clickTree4 : Tree 
+clickTree4 = Fork
+  (Atom "A")
+
+  (Fork
+    (Var "x")
+
+    (Fork
+      (Atom "C")
+      (Var "y")
+    )
+  )
+
+
 
 init : Model
-init = (ModeNoSelected, [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3 ])
+init = (ModeNoSelected, [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree4 ])
 
 print : Tree -> String
 print tree = case tree of 
@@ -217,19 +231,11 @@ clickToReduce = \red -> case red of
             Tail -> class "clickToReduce"
             _ -> empty
 
--- type Bracket = WithBracket | NoBracket
-type DisplayResult msg = NoBracket Reducibility (Html msg) | WithBracket Reducibility (Html msg)
-
-displayResultToHTML : DisplayResult msg -> Html msg
-displayResultToHTML = \r -> case r of 
-  NoBracket red html -> span [ clickToReduce red ] [ html ]
-  WithBracket red html -> span [ clickToReduce red, class "markHover" ] [ text "(" , html, text ")" ]
-
-display : Reducibility -> Tree -> DisplayResult msg
+display : Reducibility -> Tree -> Html msg
 display red tree = 
   case tree of 
-      Atom s -> NoBracket red (text s)
-      Var v -> NoBracket red (text v)
+      Atom s -> text s
+      Var v -> text v
       Fork l r -> 
         let           
           morphismRed = case l of
@@ -238,12 +244,14 @@ display red tree =
 
           (lRed, rRed) = case morphismRed of
             Atomic -> (Atomic, Atomic)
-            _ -> (Head, Tail)          
-          content = span[][ displayResultToHTML (display lRed l) , text " ", displayResultToHTML (display rRed r)]
+            _ -> (Head, Tail)
+          
+          f = span [ clickToReduce red , class "markHover" ]
+          content = [ display lRed l , text " ", display rRed r ]
         in 
           case l of
-            Var _ -> NoBracket red content
-            _ -> WithBracket red content
+            Var _ -> f content
+            _ -> f ((text "(") :: content ++ [text ")"])
 
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
@@ -264,7 +272,7 @@ view : Model -> Html Msg
 view model =
   let 
     (mode, trees) = model
-    treeDivs = List.map (display Head >> displayResultToHTML >> \s -> div [ class "line" ] [s])  trees
+    treeDivs = List.map (display Head  >> \s -> div [ class "line" ] [s])  trees
     barText = case mode of
       ModeNoSelected -> "SELECT a line as material"
       ModeSelect _ -> "MATCH a block to create a new theorem"
