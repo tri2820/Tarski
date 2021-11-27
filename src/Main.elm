@@ -197,9 +197,6 @@ update msg model =
 
 -- VIEW
 
-customStylesheet : Html msg
-customStylesheet = node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css"] []
-
 type Reducibility = Reducible | Irreducible
 display : Reducibility -> Tree -> Html Msg
 display reducibility tree = case tree of 
@@ -215,23 +212,10 @@ display reducibility tree = case tree of
       clickToReduce = case reducibility of 
         Reducible -> [class "clickToReduce"]
         Irreducible -> []
-      
-    in case l of 
-      Atom _ -> 
-        let
-          content = span [] [display childReducibility l, text " ", display childReducibility r]
-        in 
-          span (clickToReduce ++ [ class "markHover" ]) [text "(", content, text ")"]
-      Fork _ _ -> 
-        let
-          content = span [] [display childReducibility l, text "_", display childReducibility r]
-        in 
-          span (clickToReduce ++ [ class "markHover" ]) [text "(", content, text ")"]
-      _ -> 
-        let
-          content = span [] [display childReducibility l, text " ", display childReducibility r]
-        in 
-          content
+    in case l of
+      Atom _ -> span (clickToReduce ++ [ class "markHover" ]) [text "(", display childReducibility l, text " ", display childReducibility r, text ")"]
+      Fork _ _ -> span (clickToReduce ++ [ class "markHover" ]) [text "(", display childReducibility l, text "<-", display childReducibility r, text ")"]
+      _ -> span [] [display childReducibility l, text " ", display childReducibility r]
 
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
@@ -255,14 +239,15 @@ view model =
     -- _ = Debug.log "original tree" treeToBeReplaced
     -- _ = Debug.log "after tree" res
     (mode, trees) = model
-    treeDivs = List.map (display Reducible >> \s -> div [] [s])  trees
+    treeDivs = List.map (display Reducible >> \s -> div [ class "line" ] [s])  trees
     barText = case mode of
-       ModeNoSelected -> "SELET a line as material"
+       ModeNoSelected -> "SELECT a line as material"
        ModeSelect _ -> "MATCH a block to create a new theorem"
   in
     div [ ]
       [ 
-      customStylesheet,
+      node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css" ] [],
+      node "link" [ attribute "rel" "stylesheet", attribute "href" "//cdn.jsdelivr.net/gh/tonsky/FiraCode@5.2/distr/fira_code.css" ] [],
       div [] treeDivs,
       div [ class "bar" ] [ text barText ]
       ]

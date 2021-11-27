@@ -12,5 +12,13 @@
 }
 
 .clickToReduce {
-    background-color: rgba(0, 0, 255, 0.3);
+    background-color: rgba(0, 0, 255, 0.1);
+}
+
+.line {
+    font-family: 'Fira Code', monospace;
+}
+
+.bar {
+    font-family: 'Fira Code', monospace;
 }
