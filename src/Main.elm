@@ -231,11 +231,20 @@ clickToReduce = \red -> case red of
             Tail -> class "clickToReduce"
             _ -> empty
 
-display : Reducibility -> Tree -> Html msg
+type DisplayBracket = WithBracket | WithoutBracket
+type DisplayTree = Node Reducibility String  | Branch Reducibility DisplayBracket DisplayTree DisplayTree 
+
+-- There could be a better container type for Bracket but whatever
+unBracket : DisplayTree -> DisplayTree
+unBracket dtree = case dtree of
+  Node red s -> Node red s
+  Branch red _ l r -> Branch red WithoutBracket l r
+
+display : Reducibility -> Tree -> DisplayTree
 display red tree = 
   case tree of 
-      Atom s -> text s
-      Var v -> text v
+      Atom s -> Node red s
+      Var v -> Node red v
       Fork l r -> 
         let           
           morphismRed = case l of
@@ -245,14 +254,23 @@ display red tree =
           (lRed, rRed) = case morphismRed of
             Atomic -> (Atomic, Atomic)
             _ -> (Head, Tail)
-          
-          f = span [ clickToReduce red , class "markHover" ]
-          content = [ display lRed l , text " ", display rRed r ]
-        in 
-          case l of
-            Var _ -> f content
-            _ -> f ((text "(") :: content ++ [text ")"])
+          bracket = case l of
+             Var _ -> WithoutBracket
+             _ -> WithBracket
+        in Branch red bracket (display lRed l) (display rRed r)
 
+-- There could be a better container type for Reducibility but whatever
+displayTree : DisplayTree -> Html msg
+displayTree tree  = 
+  let
+    htmlBlock = \red -> span [ clickToReduce red, class "markHover" ]
+  in case tree of
+    Node red s -> [text s] |> htmlBlock red
+    Branch red bracket left right -> 
+      let content = [displayTree left , text " ", displayTree right] in case bracket of 
+        WithBracket ->  text "(" :: content ++ [text ")"] |> htmlBlock red
+        WithoutBracket -> content |> htmlBlock red
+    
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
     (Atom _) -> t
@@ -272,7 +290,7 @@ view : Model -> Html Msg
 view model =
   let 
     (mode, trees) = model
-    treeDivs = List.map (display Head  >> \s -> div [ class "line" ] [s])  trees
+    treeDivs = List.map (display Head >> unBracket >> displayTree >> \s -> div [ class "line" ] [s])  trees
     barText = case mode of
       ModeNoSelected -> "SELECT a line as material"
       ModeSelect _ -> "MATCH a block to create a new theorem"
