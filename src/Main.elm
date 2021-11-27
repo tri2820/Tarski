@@ -200,9 +200,7 @@ match p a = case p of
     _ -> InvalidMatch p a
 
 -- UPDATE
-
-type alias BlockLevel = Int
-type Msg = BlockClicked Tree
+type Msg = Unit
 
 
 update : Msg -> Model -> Model
@@ -215,39 +213,24 @@ update msg model =
 
 
 -- VIEW
-
-unwrap : DisplayType -> Html Msg
-unwrap = \s -> case s of 
-  Bracket v -> v
-  NoBracket v -> v
-
 type Reducibility = Atomic | Head | Tail
-keepwrap : DisplayType -> Html Msg
-keepwrap = \s -> case s of
-        Bracket v -> span [] [text "(", v, text ")"]
-        NoBracket v -> span [] [v]
-    
 clickToReduce : Reducibility -> Html.Attribute msg
 clickToReduce = \red -> case red of 
             Tail -> class "clickToReduce"
             _ -> empty
 
-type DisplayType = Bracket (Html Msg) | NoBracket (Html Msg)
-display : Reducibility -> Tree -> DisplayType
+display : Reducibility -> Tree -> Html Msg
 display red tree = 
   case tree of 
-      Atom s -> NoBracket (span [clickToReduce red] [text s])
-      Var v -> NoBracket (span [clickToReduce red] [text v])
+      Atom s -> span [clickToReduce red] [text s]
+      Var v -> span [clickToReduce red] [text v]
       Fork l r -> 
         let           
-          isoRed = case red of
-            Atomic -> Atomic 
-            _ -> case l of
-              Atom _ -> Atomic
-              _ -> red
-            
+          morphismRed = case l of
+            Atom _ -> Atomic
+            _ -> red
 
-          (lRed, rRed) = case isoRed of
+          (lRed, rRed) = case morphismRed of
             Atomic -> (Atomic, Atomic)
             _ -> (Head, Tail)
 
@@ -255,11 +238,8 @@ display red tree =
           right = display rRed r
         in 
           case l of
-            Atom _ -> Bracket (span [clickToReduce red, class "markHover" ] ([keepwrap left,  text " ",  keepwrap right]))
-            -- Represent both the collection in atom and morphism with Fork, so cannot have nice <-
-            -- Is not logically inconsistent because we cannot click inside atoms, only match the whole 
-            Fork _ _ -> Bracket (span [clickToReduce red, class "markHover" ] ([keepwrap left, text " ", keepwrap right]))
-            Var _ -> NoBracket (span [clickToReduce red] ([keepwrap left, text " ", keepwrap right ]))
+            Var _ -> span [clickToReduce red] [left, text " ", right]
+            _ -> span [clickToReduce red, class "markHover" ] [text "(", left, text " ", right, text ")"]
 
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
@@ -279,19 +259,15 @@ respond pattern input replaced = case match pattern input of
 view : Model -> Html Msg
 view model =
   let 
-    -- res = respond treePattern testTree treeToBeReplaced
-    -- _ = Debug.log "original tree" treeToBeReplaced
-    -- _ = Debug.log "after tree" res
     (mode, trees) = model
-    treeDivs = List.map (display Head >> unwrap >> \s -> div [ class "line" ] [s])  trees
+    treeDivs = List.map (display Head >> \s -> div [ class "line" ] [s])  trees
     barText = case mode of
-       ModeNoSelected -> "SELECT a line as material"
-       ModeSelect _ -> "MATCH a block to create a new theorem"
+      ModeNoSelected -> "SELECT a line as material"
+      ModeSelect _ -> "MATCH a block to create a new theorem"
   in
-    div [ ]
-      [ 
-      node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css" ] [],
-      node "link" [ attribute "rel" "stylesheet", attribute "href" "//cdn.jsdelivr.net/gh/tonsky/FiraCode@5.2/distr/fira_code.css" ] [],
-      div [] treeDivs,
-      div [ class "bar" ] [ text barText ]
+    div [ ] [ 
+        node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css" ] [],
+        node "link" [ attribute "rel" "stylesheet", attribute "href" "//cdn.jsdelivr.net/gh/tonsky/FiraCode@5.2/distr/fira_code.css" ] [],
+        div [] treeDivs,
+        div [ class "bar" ] [ text barText ]
       ]
