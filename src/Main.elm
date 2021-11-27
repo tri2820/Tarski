@@ -16,6 +16,9 @@ import Maybe.Extra
 import Html.Attributes exposing (attribute)
 import Html exposing (node)
 import Html exposing (mark)
+import Html exposing (p)
+import Html exposing (pre)
+import Html exposing (code)
 
 -- MAIN
 
@@ -27,8 +30,8 @@ main = Browser.sandbox { init = init, update = update, view = view }
 
 -- MODEL
 
-
-type alias Model = Tree
+type Mode = ModeNoSelected | ModeSelect String
+type alias Model = (Mode, List Tree)
 
 type Tree = Var String | Atom String | Fork Tree Tree
 
@@ -94,8 +97,53 @@ treeToBeReplaced = Fork
     (Var "k")
   )
 
+clickTree : Tree 
+clickTree = Fork
+  (Fork 
+    (Fork
+      (Atom "A")
+      (Var "z")
+    )
+
+    (Fork
+      (Atom "B")
+      (Var "x")
+    )
+  )
+
+  (Fork 
+    (Fork
+      (Atom "A")
+      (Var "z")
+    )
+
+    (Fork
+      (Atom "B")
+      (Var "x")
+    )
+  )
+
+clickTree2 : Tree 
+clickTree2 = Fork
+  (Fork 
+    (Fork
+      (Atom "A")
+      (Var "z")
+    )
+
+    (Fork
+      (Atom "B")
+      (Var "x")
+    )
+  )
+
+  (Fork
+    (Atom "C")
+    (Var "k")
+  )
+
 init : Model
-init = testTree
+init = (ModeNoSelected, [testTree, testTree, clickTree, clickTree2])
 
 print : Tree -> String
 print tree = case tree of 
@@ -134,13 +182,16 @@ match p a = case p of
 
 -- UPDATE
 
-type Msg
-  = Increment
-  | Decrement
+type alias BlockLevel = Int
+type Msg = BlockClicked Tree
 
 
 update : Msg -> Model -> Model
-update msg model = model
+update msg model = 
+  let 
+    _ = Debug.log "Message" msg
+  in 
+    model
 
 
 
@@ -149,14 +200,38 @@ update msg model = model
 customStylesheet : Html msg
 customStylesheet = node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css"] []
 
-display : Tree -> Html Msg
-display tree = case tree of 
+type Reducibility = Reducible | Irreducible
+display : Reducibility -> Tree -> Html Msg
+display reducibility tree = case tree of 
   Atom s -> text s
   Var v -> text v
-  Fork l r -> let content = span [] [display l, text " ", display r]
+  Fork l r -> 
+    let 
+      childReducibility = case reducibility of 
+        Irreducible  -> Irreducible
+        Reducible -> case l of 
+          Atom _ -> Irreducible
+          _ -> Reducible
+      clickToReduce = case reducibility of 
+        Reducible -> [class "clickToReduce"]
+        Irreducible -> []
+      
     in case l of 
-      Atom _ -> span [ class "markHover" ] [text "(", content, text ")"]
-      _ -> content
+      Atom _ -> 
+        let
+          content = span [] [display childReducibility l, text " ", display childReducibility r]
+        in 
+          span (clickToReduce ++ [ class "markHover" ]) [text "(", content, text ")"]
+      Fork _ _ -> 
+        let
+          content = span [] [display childReducibility l, text "_", display childReducibility r]
+        in 
+          span (clickToReduce ++ [ class "markHover" ]) [text "(", content, text ")"]
+      _ -> 
+        let
+          content = span [] [display childReducibility l, text " ", display childReducibility r]
+        in 
+          content
 
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
@@ -176,11 +251,18 @@ respond pattern input replaced = case match pattern input of
 view : Model -> Html Msg
 view model =
   let 
-    res = respond treePattern testTree treeToBeReplaced
-    _ = Debug.log "original tree" treeToBeReplaced
-    _ = Debug.log "after tree" res
+    -- res = respond treePattern testTree treeToBeReplaced
+    -- _ = Debug.log "original tree" treeToBeReplaced
+    -- _ = Debug.log "after tree" res
+    (mode, trees) = model
+    treeDivs = List.map (display Reducible >> \s -> div [] [s])  trees
+    barText = case mode of
+       ModeNoSelected -> "SELET a line as material"
+       ModeSelect _ -> "MATCH a block to create a new theorem"
   in
-    div []
+    div [ ]
       [ 
-      div [] [ customStylesheet, display model ]
+      customStylesheet,
+      div [] treeDivs,
+      div [ class "bar" ] [ text barText ]
       ]

@@ -5,3 +5,12 @@
 .markHover:hover {
     background-color: rgba(255, 0, 0, 0.3);
 }
+
+.bar {
+    position: absolute;
+    bottom: 0px;
+}
+
+.clickToReduce {
+    background-color: rgba(0, 0, 255, 0.3);
+}
