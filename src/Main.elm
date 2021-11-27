@@ -256,7 +256,7 @@ display red tree =
         in 
           case l of
             Atom _ -> Bracket (span [clickToReduce red, class "markHover" ] ([keepwrap left,  text " ",  keepwrap right]))
-            Fork _ _ -> Bracket (span [clickToReduce red, class "markHover" ] ([unwrap left, text "<- ", keepwrap right]))
+            Fork _ _ -> Bracket (span [clickToReduce red, class "markHover" ] ([keepwrap left, text " ", keepwrap right]))
             Var _ -> NoBracket (span [clickToReduce red] ([keepwrap left, text " ", keepwrap right ]))
 
 project : Dict String Tree -> Tree -> Tree
