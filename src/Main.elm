@@ -210,8 +210,6 @@ update msg model =
   in 
     model
 
-
-
 -- VIEW
 type Reducibility = Atomic | Head | Tail
 clickToReduce : Reducibility -> Html.Attribute msg
@@ -219,11 +217,19 @@ clickToReduce = \red -> case red of
             Tail -> class "clickToReduce"
             _ -> empty
 
-display : Reducibility -> Tree -> Html Msg
+-- type Bracket = WithBracket | NoBracket
+type DisplayResult msg = NoBracket Reducibility (Html msg) | WithBracket Reducibility (Html msg)
+
+displayResultToHTML : DisplayResult msg -> Html msg
+displayResultToHTML = \r -> case r of 
+  NoBracket red html -> span [ clickToReduce red ] [ html ]
+  WithBracket red html -> span [ clickToReduce red, class "markHover" ] [ text "(" , html, text ")" ]
+
+display : Reducibility -> Tree -> DisplayResult msg
 display red tree = 
   case tree of 
-      Atom s -> span [clickToReduce red] [text s]
-      Var v -> span [clickToReduce red] [text v]
+      Atom s -> NoBracket red (text s)
+      Var v -> NoBracket red (text v)
       Fork l r -> 
         let           
           morphismRed = case l of
@@ -232,14 +238,12 @@ display red tree =
 
           (lRed, rRed) = case morphismRed of
             Atomic -> (Atomic, Atomic)
-            _ -> (Head, Tail)
-
-          left = display lRed l
-          right = display rRed r
+            _ -> (Head, Tail)          
+          content = span[][ displayResultToHTML (display lRed l) , text " ", displayResultToHTML (display rRed r)]
         in 
           case l of
-            Var _ -> span [clickToReduce red] [left, text " ", right]
-            _ -> span [clickToReduce red, class "markHover" ] [text "(", left, text " ", right, text ")"]
+            Var _ -> NoBracket red content
+            _ -> WithBracket red content
 
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
@@ -260,7 +264,7 @@ view : Model -> Html Msg
 view model =
   let 
     (mode, trees) = model
-    treeDivs = List.map (display Head >> \s -> div [ class "line" ] [s])  trees
+    treeDivs = List.map (display Head >> displayResultToHTML >> \s -> div [ class "line" ] [s])  trees
     barText = case mode of
       ModeNoSelected -> "SELECT a line as material"
       ModeSelect _ -> "MATCH a block to create a new theorem"
