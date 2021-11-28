@@ -21,7 +21,7 @@ main = Browser.sandbox { init = init, update = update, view = view }
 type Mode = ModeNoSelected | ModeSelected Line
 type alias Model = {
     mode: Mode, 
-    lines: List Line
+    lines: List (Line, Maybe DisplayStructure)
   }
 
 type Tree = Var String | Atom String | Fork Tree Tree
@@ -167,7 +167,7 @@ clickTree4 = Fork
 init : Model
 init = {
     mode = ModeNoSelected, 
-    lines = [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree4 ]
+    lines = List.map (\f -> Tuple.pair f Nothing) [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree4 ]
   }
 
 print : Tree -> String
@@ -288,19 +288,21 @@ respond pattern input replaced = case match pattern input of
   InvalidMatch t1 t2 -> Err ("Cannot match" ++ (print t1) ++ "with" ++ (print t2))
   VariableCollision v t1 t2 -> Err ("Variable" ++ v ++ "is set to both" ++ (print t1) ++ "and" ++ (print t2))
 
-toDiv : Model -> Line -> Html Msg
-toDiv model line = 
+toDiv : Mode -> (Line, Maybe DisplayStructure) -> Html Msg
+toDiv mode (line, cachedDisplayStructure) = 
   let
-    lineClickHandler = case model.mode of
+    lineClickHandler = case mode of
       ModeSelected _ -> empty
       ModeNoSelected -> onClick (LineClicked line)
-  in 
-    line |> display Head >> Tuple.mapSecond unBracket >> displayTree >> List.singleton >> div [ lineClickHandler , class "line" ]
+    displayStructure = case cachedDisplayStructure of
+      Nothing ->  display Head line
+      Just ds -> ds
+  in displayStructure |> Tuple.mapSecond unBracket >> displayTree >> List.singleton >> div [ lineClickHandler , class "line" ]
 
 view : Model -> Html Msg
-view model =
-  let 
-    treeDivs = model.lines |> List.map (toDiv model) 
+view model = 
+  let
+    treeDivs = List.map (toDiv model.mode) model.lines
     barText = case model.mode of
       ModeNoSelected -> "SELECT a line as material"
       ModeSelected line -> "Selected > " ++ (print line)
