@@ -230,6 +230,7 @@ update msg model = case model.mode of
 type Reducibility = Atomic | Head | Tail Tree
 type DisplayBracket = WithBracket | WithoutBracket
 type DisplayTree = Node String | Branch DisplayBracket (Reducibility, DisplayTree) (Reducibility, DisplayTree)
+type alias DisplayStructure = (Reducibility, DisplayTree)
 
 -- There could be a better container type for Bracket but whatever
 unBracket : DisplayTree -> DisplayTree
@@ -237,7 +238,7 @@ unBracket dtree = case dtree of
   Node s -> Node s
   Branch _ l r -> Branch WithoutBracket l r
 
-display : Reducibility -> Tree -> (Reducibility, DisplayTree)
+display : Reducibility -> Tree -> DisplayStructure
 display red tree = 
   case tree of 
       Atom s -> (red, Node s)
@@ -257,7 +258,7 @@ display red tree =
           right = display rRed r
         in (red, Branch bracket left right)
 
-displayTree : (Reducibility, DisplayTree) -> Html Msg
+displayTree : DisplayStructure -> Html Msg
 displayTree (red, dt) = 
   let
     (eventContainer, hoverDetector) = case red of
@@ -287,9 +288,8 @@ respond pattern input replaced = case match pattern input of
   InvalidMatch t1 t2 -> Err ("Cannot match" ++ (print t1) ++ "with" ++ (print t2))
   VariableCollision v t1 t2 -> Err ("Variable" ++ v ++ "is set to both" ++ (print t1) ++ "and" ++ (print t2))
 
-type alias LineNumber = Int
-toDiv : Model -> (LineNumber, Line) -> Html Msg
-toDiv model (lineNumber, line) = 
+toDiv : Model -> Line -> Html Msg
+toDiv model line = 
   let
     lineClickHandler = case model.mode of
       ModeSelected _ -> empty
@@ -300,7 +300,7 @@ toDiv model (lineNumber, line) =
 view : Model -> Html Msg
 view model =
   let 
-    treeDivs = model.lines |> List.indexedMap Tuple.pair >> List.map (toDiv model) 
+    treeDivs = model.lines |> List.map (toDiv model) 
     barText = case model.mode of
       ModeNoSelected -> "SELECT a line as material"
       ModeSelected line -> "Selected > " ++ (print line)
