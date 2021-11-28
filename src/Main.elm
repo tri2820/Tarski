@@ -2,26 +2,26 @@ module Main exposing (..)
 
 import Browser
 import Html exposing (Html, div, text, span, node, p)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onMouseEnter, onMouseLeave, onMouseOver)
 import Html.Attributes exposing (class)
 import Dict exposing (Dict)
 import Maybe.Extra
-import Html.Attributes exposing (attribute)
+import Html.Attributes exposing (attribute, style)
 import Html.Attributes.Extra exposing (empty)
+
+
 -- MAIN
 
 
 main : Program () Model Msg
 main = Browser.sandbox { init = init, update = update, view = view }
 
-
-
 -- MODEL
 
-type Mode = ModeNoSelected | ModeSelect Line
+type Mode = ModeNoSelected | ModeSelected Line
 type alias Model = {
     mode: Mode, 
-    trees: List Tree
+    lines: List Line
   }
 
 type Tree = Var String | Atom String | Fork Tree Tree
@@ -167,7 +167,7 @@ clickTree4 = Fork
 init : Model
 init = {
     mode = ModeNoSelected, 
-    trees = [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree4 ]
+    lines = [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree4 ]
   }
 
 print : Tree -> String
@@ -176,8 +176,8 @@ print tree = case tree of
   Var v -> v
   Fork l r -> let content = (print l) ++ " " ++ (print r)
     in case l of 
-      Atom _ -> "(" ++ content ++ ")"
-      _ -> content
+      Var _ -> content
+      _ -> "(" ++ content ++ ")"
 
 type MatchResult = Match (Dict String Tree) | InvalidMatch Tree Tree | VariableCollision String Tree Tree
 notSame : a -> a -> Maybe (a, a)
@@ -198,7 +198,7 @@ match p a = case p of
               union = Dict.union l_dict r_dict
               dictMaybeCollisions =  Dict.map (findInDict union) r_dict 
               maybeCollisions = Dict.toList dictMaybeCollisions
-              collisions = List.filter (\(_,v) -> Maybe.Extra.isJust v) maybeCollisions
+              collisions = List.filter (Tuple.second >> Maybe.Extra.isJust) maybeCollisions
               result = case collisions of
                 (var, Just (t1, t2))::_ -> VariableCollision var t1 t2
                 _ -> Match (Dict.union l_dict r_dict)
@@ -209,20 +209,28 @@ match p a = case p of
 
 -- UPDATE
 type alias Line = Tree
-type Msg = TreeClicked Tree Line
 
+type Msg = TreeClicked Tree | LineClicked Line 
 
 update : Msg -> Model -> Model
-update (TreeClicked tree line) model = case model.mode of
-  ModeSelect _ -> model
-  ModeNoSelected -> { model | mode = ModeSelect line }
+update msg model = case model.mode of
+  ModeNoSelected -> case msg of
+    LineClicked line -> { model | mode = ModeSelected line }
+    _ -> model
+  ModeSelected line -> case msg of 
+    TreeClicked tree ->
+      let
+        _ = Debug.log "this tree is clicked" tree
+      in 
+        { model | mode = ModeNoSelected }
+    _ -> model
 
 -- VIEW
 type Reducibility = Atomic | Head | Tail Tree
-clickToReduce : Reducibility -> Html.Attribute msg
-clickToReduce = \red -> case red of 
-            Tail _ -> class "clickToReduce"
-            _ -> empty
+
+highlightReducible red = case red of 
+  Tail _ -> class "highlightReducible"
+  _ -> empty
 
 type DisplayBracket = WithBracket | WithoutBracket
 type DisplayTree = Node Reducibility String | Branch Reducibility DisplayBracket DisplayTree DisplayTree
@@ -253,17 +261,19 @@ display red tree =
         in Branch red bracket (display lRed l) (display rRed r)
 
 -- There could be a better container type for Reducibility but whatever
-displayTree : Line -> DisplayTree -> Html Msg
-displayTree line tree = 
+displayTree : DisplayTree -> Html Msg
+displayTree tree = 
   let
     htmlBlock red = case red of 
-      Tail t -> span [ class "markHover", clickToReduce red, onClick (TreeClicked t line) ]
-      _ -> span [ class "markHover" ]
+      Tail t -> span [ class "markHover", highlightReducible red, onClick (TreeClicked t) ]
+      _ -> span [ ]
 
   in case tree of
     Node red s -> [text s] |> htmlBlock red
     Branch red bracket left right -> 
-      let content = [displayTree line left, text " ", displayTree line right ] in case bracket of 
+      let 
+        content = [ displayTree left, text " ", displayTree right ] 
+      in case bracket of 
         WithBracket ->  text "(" :: content ++ [text ")"] |> htmlBlock red
         WithoutBracket -> content |> htmlBlock red
             
@@ -282,14 +292,23 @@ respond pattern input replaced = case match pattern input of
   InvalidMatch t1 t2 -> Err ("Cannot match" ++ (print t1) ++ "with" ++ (print t2))
   VariableCollision v t1 t2 -> Err ("Variable" ++ v ++ "is set to both" ++ (print t1) ++ "and" ++ (print t2))
 
+type alias LineNumber = Int
+toDiv : Model -> (LineNumber, Line) -> Html Msg
+toDiv model (lineNumber, line) = 
+  let
+    lineClickHandler = case model.mode of
+      ModeSelected _ -> empty
+      ModeNoSelected -> onClick (LineClicked line)
+  in 
+    line |> display Head >> unBracket >> displayTree >> List.singleton >> div [ lineClickHandler , class "line" ]
+
 view : Model -> Html Msg
 view model =
   let 
-    toDiv = \t -> t |> display Head >> unBracket >> displayTree t >> \s -> div [ class "line" ] [s]
-    treeDivs = model.trees |> List.map toDiv
+    treeDivs = model.lines |> List.indexedMap Tuple.pair >> List.map (toDiv model) 
     barText = case model.mode of
       ModeNoSelected -> "SELECT a line as material"
-      ModeSelect line -> "Selected > " ++ (print line)
+      ModeSelected line -> "Selected > " ++ (print line)
   in
     div [ ] [ 
         node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css" ] [],
