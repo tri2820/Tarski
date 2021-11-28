@@ -8,7 +8,7 @@ import Dict exposing (Dict)
 import Maybe.Extra
 import Html.Attributes exposing (attribute, style)
 import Html.Attributes.Extra exposing (empty)
-
+-- import Random
 
 -- MAIN
 
@@ -210,12 +210,13 @@ match p a = case p of
 -- UPDATE
 type alias Line = Tree
 
-type Msg = TreeClicked Tree | LineClicked Line 
+type Msg = TreeClicked Tree | LineClicked Line | HighlightBlock Tree
 
 update : Msg -> Model -> Model
 update msg model = case model.mode of
   ModeNoSelected -> case msg of
     LineClicked line -> { model | mode = ModeSelected line }
+    HighlightBlock t -> let _ = Debug.log "hi" t in model
     _ -> model
   ModeSelected line -> case msg of 
     TreeClicked tree ->
@@ -261,20 +262,27 @@ display red tree =
         in Branch red bracket (display lRed l) (display rRed r)
 
 -- There could be a better container type for Reducibility but whatever
+
+
+
 displayTree : DisplayTree -> Html Msg
 displayTree tree = 
   let
+    mod red string = case red of
+      Tail t -> span [ onMouseEnter (HighlightBlock t) ] [ text string ]
+      _ -> text string
+
     htmlBlock red = case red of 
       Tail t -> span [ class "markHover", highlightReducible red, onClick (TreeClicked t) ]
       _ -> span [ ]
 
   in case tree of
-    Node red s -> [text s] |> htmlBlock red
+    Node red s -> [mod red s] |> htmlBlock red
     Branch red bracket left right -> 
       let 
-        content = [ displayTree left, text " ", displayTree right ] 
+        content = [ displayTree left, mod red " ", displayTree right ] 
       in case bracket of 
-        WithBracket ->  text "(" :: content ++ [text ")"] |> htmlBlock red
+        WithBracket ->  mod red "(" :: content ++ [mod red ")"] |> htmlBlock red
         WithoutBracket -> content |> htmlBlock red
             
 project : Dict String Tree -> Tree -> Tree
