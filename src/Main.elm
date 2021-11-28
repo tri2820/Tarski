@@ -174,10 +174,10 @@ print tree = case tree of
       _ -> content
 
 type MatchResult = Match (Dict String Tree) | InvalidMatch Tree Tree | VariableCollision String Tree Tree
-collision : a -> a -> Maybe (a, a)
-collision v other_v = if other_v == v then Nothing else Just (other_v, v)
+notSame : a -> a -> Maybe (a, a)
+notSame v other_v = if other_v == v then Nothing else Just (other_v, v)
 findInDict : Dict comparable c -> comparable -> c -> Maybe (c, c)
-findInDict d k v = Dict.get k d |> Maybe.andThen (collision v)
+findInDict d k v = Dict.get k d |> Maybe.andThen (notSame v)
 
 match : Tree -> Tree -> MatchResult
 match p a = case p of 
@@ -214,26 +214,26 @@ update msg model =
     model
 
 -- VIEW
-type Reducibility = Atomic | Head | Tail
+type Reducibility = Atomic | Head | Tail Tree
 clickToReduce : Reducibility -> Html.Attribute msg
 clickToReduce = \red -> case red of 
-            Tail -> class "clickToReduce"
+            Tail _ -> class "clickToReduce"
             _ -> empty
 
 type DisplayBracket = WithBracket | WithoutBracket
-type DisplayTree = Node Reducibility String Tree | Branch Reducibility DisplayBracket DisplayTree DisplayTree Tree
+type DisplayTree = Node Reducibility String | Branch Reducibility DisplayBracket DisplayTree DisplayTree
 
 -- There could be a better container type for Bracket but whatever
 unBracket : DisplayTree -> DisplayTree
 unBracket dtree = case dtree of
-  Node red s t -> Node red s t
-  Branch red _ l r t -> Branch red WithoutBracket l r t
+  Node red s -> Node red s
+  Branch red _ l r -> Branch red WithoutBracket l r
 
 display : Reducibility -> Tree -> DisplayTree
 display red tree = 
   case tree of 
-      Atom s -> Node red s tree
-      Var v -> Node red v tree
+      Atom s -> Node red s 
+      Var v -> Node red v 
       Fork l r -> 
         let           
           morphismRed = case l of
@@ -242,23 +242,26 @@ display red tree =
 
           (lRed, rRed) = case morphismRed of
             Atomic -> (Atomic, Atomic)
-            _ -> (Head, Tail)
+            _ -> (Head, Tail r)
           bracket = case l of
              Var _ -> WithoutBracket
              _ -> WithBracket
-        in Branch red bracket (display lRed l) (display rRed r) tree
+        in Branch red bracket (display lRed l) (display rRed r)
 
 -- There could be a better container type for Reducibility but whatever
 displayTree : Line -> DisplayTree -> Html Msg
 displayTree line tree = 
   let
-    htmlBlock = \red -> \t -> span [ clickToReduce red, class "markHover", onClick (TreeClicked t line) ]
+    htmlBlock red = case red of 
+      Tail t -> span [ class "markHover", clickToReduce red, onClick (TreeClicked t line) ]
+      _ -> span [ class "markHover" ]
+
   in case tree of
-    Node red s t -> [text s] |> htmlBlock red t
-    Branch red bracket left right t -> 
+    Node red s -> [text s] |> htmlBlock red
+    Branch red bracket left right -> 
       let content = [displayTree line left, text " ", displayTree line right ] in case bracket of 
-        WithBracket ->  text "(" :: content ++ [text ")"] |> htmlBlock red t
-        WithoutBracket -> content |> htmlBlock red t
+        WithBracket ->  text "(" :: content ++ [text ")"] |> htmlBlock red
+        WithoutBracket -> content |> htmlBlock red
             
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
