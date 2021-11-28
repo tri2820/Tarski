@@ -228,62 +228,49 @@ update msg model = case model.mode of
 
 -- VIEW
 type Reducibility = Atomic | Head | Tail Tree
-
-highlightReducible red = case red of 
-  Tail _ -> class "highlightReducible"
-  _ -> empty
-
 type DisplayBracket = WithBracket | WithoutBracket
-type DisplayTree = Node Reducibility String | Branch Reducibility DisplayBracket DisplayTree DisplayTree
+type DisplayTree = Node String | Branch DisplayBracket (Reducibility, DisplayTree) (Reducibility, DisplayTree)
 
 -- There could be a better container type for Bracket but whatever
 unBracket : DisplayTree -> DisplayTree
 unBracket dtree = case dtree of
-  Node red s -> Node red s
-  Branch red _ l r -> Branch red WithoutBracket l r
+  Node s -> Node s
+  Branch _ l r -> Branch WithoutBracket l r
 
-display : Reducibility -> Tree -> DisplayTree
+display : Reducibility -> Tree -> (Reducibility, DisplayTree)
 display red tree = 
   case tree of 
-      Atom s -> Node red s 
-      Var v -> Node red v 
+      Atom s -> (red, Node s)
+      Var v -> (red, Node v)
       Fork l r -> 
         let           
           morphismRed = case l of
             Atom _ -> Atomic
             _ -> red
 
-          (lRed, rRed) = case morphismRed of
-            Atomic -> (Atomic, Atomic)
-            _ -> (Head, Tail r)
+          (lRed, rRed) = if morphismRed == Atomic then (Atomic, Atomic) else (Head, Tail r)
           bracket = case l of
              Var _ -> WithoutBracket
              _ -> WithBracket
-        in Branch red bracket (display lRed l) (display rRed r)
 
--- There could be a better container type for Reducibility but whatever
+          left = display lRed l
+          right = display rRed r
+        in (red, Branch bracket left right)
 
-
-
-displayTree : DisplayTree -> Html Msg
-displayTree tree = 
+displayTree : (Reducibility, DisplayTree) -> Html Msg
+displayTree (red, dt) = 
   let
-    mod red string = case red of
-      Tail t -> span [ onMouseEnter (HighlightBlock t) ] [ text string ]
-      _ -> text string
+    (eventContainer, hoverDetector) = case red of
+      Tail t -> (span [ class "markHover", class "highlightReducible", onClick (TreeClicked t) ], text >> List.singleton >> span [onMouseEnter (HighlightBlock t)] )
+      _ -> ( span [], text >> List.singleton >> span [] )
 
-    htmlBlock red = case red of 
-      Tail t -> span [ class "markHover", highlightReducible red, onClick (TreeClicked t) ]
-      _ -> span [ ]
-
-  in case tree of
-    Node red s -> [mod red s] |> htmlBlock red
-    Branch red bracket left right -> 
-      let 
-        content = [ displayTree left, mod red " ", displayTree right ] 
-      in case bracket of 
-        WithBracket ->  mod red "(" :: content ++ [mod red ")"] |> htmlBlock red
-        WithoutBracket -> content |> htmlBlock red
+    contentHtml = case dt of
+        Node s -> [ text s ]
+        Branch bracket left right -> let content = [displayTree left, hoverDetector " ", displayTree right] in case bracket of
+          WithBracket -> (hoverDetector "(") :: content ++ [hoverDetector ")"]
+          WithoutBracket -> content 
+  in contentHtml |> eventContainer
+  
             
 project : Dict String Tree -> Tree -> Tree
 project d t = case t of
@@ -308,7 +295,7 @@ toDiv model (lineNumber, line) =
       ModeSelected _ -> empty
       ModeNoSelected -> onClick (LineClicked line)
   in 
-    line |> display Head >> unBracket >> displayTree >> List.singleton >> div [ lineClickHandler , class "line" ]
+    line |> display Head >> Tuple.mapSecond unBracket >> displayTree >> List.singleton >> div [ lineClickHandler , class "line" ]
 
 view : Model -> Html Msg
 view model =
