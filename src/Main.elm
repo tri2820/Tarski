@@ -18,8 +18,11 @@ main = Browser.sandbox { init = init, update = update, view = view }
 
 -- MODEL
 
-type Mode = ModeNoSelected | ModeSelect String
-type alias Model = (Mode, List Tree)
+type Mode = ModeNoSelected | ModeSelect Line
+type alias Model = {
+    mode: Mode, 
+    trees: List Tree
+  }
 
 type Tree = Var String | Atom String | Fork Tree Tree
 
@@ -162,7 +165,10 @@ clickTree4 = Fork
 
 
 init : Model
-init = (ModeNoSelected, [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree4 ])
+init = {
+    mode = ModeNoSelected, 
+    trees = [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree4 ]
+  }
 
 print : Tree -> String
 print tree = case tree of 
@@ -202,16 +208,14 @@ match p a = case p of
     _ -> InvalidMatch p a
 
 -- UPDATE
-type Line = Line Tree
+type alias Line = Tree
 type Msg = TreeClicked Tree Line
 
 
 update : Msg -> Model -> Model
-update msg model = 
-  let 
-    _ = Debug.log "Message" msg
-  in 
-    model
+update (TreeClicked tree line) model = case model.mode of
+  ModeSelect _ -> model
+  ModeNoSelected -> { model | mode = ModeSelect line }
 
 -- VIEW
 type Reducibility = Atomic | Head | Tail Tree
@@ -281,12 +285,11 @@ respond pattern input replaced = case match pattern input of
 view : Model -> Html Msg
 view model =
   let 
-    (mode, trees) = model
-    toDiv = \t -> t |> display Head >> unBracket >> displayTree (Line t) >> \s -> div [ class "line" ] [s]
-    treeDivs = trees |> List.map toDiv
-    barText = case mode of
+    toDiv = \t -> t |> display Head >> unBracket >> displayTree t >> \s -> div [ class "line" ] [s]
+    treeDivs = model.trees |> List.map toDiv
+    barText = case model.mode of
       ModeNoSelected -> "SELECT a line as material"
-      ModeSelect _ -> "MATCH a block to create a new theorem"
+      ModeSelect line -> "Selected > " ++ (print line)
   in
     div [ ] [ 
         node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css" ] [],
