@@ -8,6 +8,8 @@ import Html.Attributes.Extra exposing (empty)
 import Tree exposing (Tree(..))
 import TestTrees exposing (testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree4)
 import Treelike exposing (Bracket(..), Re(..), Treelike(..), toDTree)
+import Treelike exposing (toDisplayTree)
+import Treelike exposing (DisplayTree)
 
 main : Program () Model Msg
 main = Browser.sandbox { init = init, update = update, view = view }
@@ -31,7 +33,7 @@ update msg model = model
 view : Model -> Html Msg
 view model = 
   let
-    treeDiv  = testTree |> toDTree >> toHTML >> List.singleton
+    treeDiv  = testTree |> toDisplayTree >> toHTML >> List.singleton
     barText = "SELECT a line as material"
   in
     div [ ] [ 
@@ -52,8 +54,15 @@ container re = case re of
   T -> span [ class "markHover", class "highlightReducible" ]
   _ -> span []
 
-toHTML : Treelike (Bracket, (Re, Maybe String)) -> Html Msg
+htmlText : Maybe String -> Html msg 
+htmlText value = case value of 
+  Just s -> text s
+  Nothing -> text " "
+
+mergeBranch : DisplayTree -> DisplayTree -> Html Msg -> Html Msg
+mergeBranch l r = \middle -> span [] [toHTML l, middle, toHTML r]
+
+toHTML : DisplayTree -> Html Msg
 toHTML tree = case tree of
-  One (bracket, (re, Just s)) -> text s |> brhtml bracket >> container re
-  Two (bracket, (re, Nothing)) l r -> span [] [toHTML l, text " ", toHTML r] |> brhtml bracket >> container re
-  _ -> span [][]
+  One {bracket, reducibility, value} -> value |> htmlText >> brhtml bracket >> container reducibility
+  Two {bracket, reducibility, value} l r -> value |> htmlText >> mergeBranch l r |> brhtml bracket >> container reducibility

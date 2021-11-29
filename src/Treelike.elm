@@ -5,9 +5,14 @@ type Treelike o = One o | Two o (Treelike o) (Treelike o)
 type F a = F a (Tree -> F a) (Tree -> F a)
 type Bracket = YesBracket | NoBracket
 type Re = A | H | T
-type alias DTree = Treelike (Bracket, (Re, Maybe String))
 
-zipTree : Treelike a -> Treelike b -> Treelike (a,b)
+type alias DisplayTree = Treelike {
+    bracket : Bracket,
+    reducibility : Re,
+    value: Maybe String
+  }
+
+zipTree : Treelike a -> Treelike b -> Treelike (a, b)
 zipTree ta tb = case (ta, tb) of
   (One a, One b) -> One (a,b)
   (One a, Two b _ _) -> One (a,b)
@@ -54,3 +59,18 @@ toDTree tree =
     cT = f mkTree
     t = zipTree bracketT <| zipTree reT cT
   in t
+
+map : (o -> a) -> Treelike o -> Treelike a
+map f t = case t of 
+  One x -> One (f x)
+  Two x l r -> Two (f x) (map f l) (map f r)
+
+toRecord : (a, (b, c)) -> { bracket : a, reducibility : b, value : c }
+toRecord (br, (re, str)) = {
+    bracket = br,
+    reducibility = re, 
+    value = str
+  }
+
+toDisplayTree : Tree -> Treelike { bracket : Bracket, reducibility : Re, value : Maybe String}
+toDisplayTree = toDTree >> (map toRecord)
