@@ -89,7 +89,6 @@ update msg model = case msg of
       Just t -> { model | root = t }
       Nothing -> model
 
-
 view : Model -> Html Msg
 view model = 
   let 
@@ -138,11 +137,6 @@ brhtml br = case br of
   YesBracket ->  \html -> [ text "(", html , text ")" ]
   NoBracket -> \html -> [ html ]
 
--- container : Re -> List (Html msg) -> Html msg
--- container re = case re of 
---   T -> span [ class "markHover", class "highlightReducible" ]
---   _ -> span []
-
 onMouseOverStopPropagation : a -> Html.Attribute a
 onMouseOverStopPropagation msg = stopPropagationOn "mouseover" <| Json.succeed ( msg, True )
 onMouseOutStopPropagation : a -> Html.Attribute a
@@ -151,16 +145,6 @@ eventNode : Re -> Zipper DisplayRecord -> List (Html Msg) -> Html Msg
 eventNode re z = case re of 
   T -> span [ class "markHover", class "highlightReducible", onClickStopPropagation (Reduce z), onMouseOverStopPropagation (Highlight z) , onMouseOutStopPropagation (UnHighlight z)]
   _ -> span []
-
--- treeToHTML : Tree DisplayRecord -> Html Msg
--- treeToHTML (Tree { reducibility, bracket, tree } forests) = 
---   let
---     content = case tree of 
---       Var v -> [ text v ]
---       Atom a -> [ text a ]
---       _ -> List.map treeToHTML forests |> List.intersperse (text " ")
-
---   in content |> span [] >> brhtml bracket >> container reducibility
 
 zipperToHTML : Zipper DisplayRecord -> Html Msg
 zipperToHTML z = case z of
@@ -181,9 +165,6 @@ zipperToHTML z = case z of
 highlightNode : Bool -> Html msg -> Html msg
 highlightNode highlight = if highlight then \x -> span [ style "background-color" "red" ] [x] else \x -> span [][x]
 
--- rootTraversal : RootTree -> Html Msg
--- rootTraversal root = 
-
 type alias ZipperRoot = Zipper DisplayRecord
 zipToRoot : ZipperRoot -> Html Msg
 zipToRoot rootZipper = case rootZipper of
@@ -191,8 +172,12 @@ zipToRoot rootZipper = case rootZipper of
     let
       htmls = List.length children 
         |> List.range 0 
-        |> List.map ((\i -> goToChild i rootZipper) >> Maybe.map zipperToHTML)      
+        |> List.map (
+            (\i -> goToChild i rootZipper) 
+            >> Maybe.andThen (updateDatum (\record -> {record | bracket = NoBracket, reducibility = H})) 
+            >> Maybe.map zipperToHTML
+            )
         |> Maybe.Extra.values
         |> List.map (\html -> div [] [html])
-    in span [] htmls
+    in span [ style "font-size" "40px" ] htmls
 
