@@ -29,15 +29,20 @@ import Html.Events exposing (stopPropagationOn)
 import Html.Events exposing (onMouseEnter)
 import Html.Events exposing (onMouseOver, on)
 import Json.Decode as Json
+import Maybe.Extra
+import MultiwayTreeZipper exposing (goToRoot)
+import MultiwayTreeZipper exposing (updateDatum)
+import Html.Attributes exposing (style)
 
 main : Program () Model Msg
 main = Browser.sandbox { init = init, update = update, view = view }
 
 type Mode = ModeNoSelected
 
+type alias RootTree = Tree DisplayRecord
 type alias Model = {
     -- lines : List (ParsingTree, Maybe (Tree DisplayRecord))
-    trees : Tree DisplayRecord
+    root : RootTree
     -- parsingTrees : List (ParsingTree)
   }
 
@@ -45,13 +50,14 @@ emptyDisplayRecord : DisplayRecord
 emptyDisplayRecord = {
     reducibility = T,
     bracket = NoBracket,
-    tree = Fork (Atom "") (Atom "")
+    tree = Fork (Atom "") (Atom ""),
+    highlight = False
   }
 
 init : Model
 init = {
   -- parsingTrees = [],
-  trees =  [testTree, clickTree, clickTree2, clickTree3, clickTree3, treeToBeReplaced] |> List.map rootConvert >> Tree emptyDisplayRecord
+  root =  [testTree, clickTree, clickTree2, clickTree3, clickTree3, treeToBeReplaced] |> List.map rootConvert >> Tree emptyDisplayRecord
     -- lines = List.map (\s -> (s, Nothing)) [testTree, clickTree, clickTree2, clickTree3, clickTree3, treeToBeReplaced]
   }
 
@@ -65,14 +71,23 @@ update msg model = case msg of
       model
   Highlight z ->
     let 
-        _ = Debug.log "hover" z
-      in 
-        model
+      _ = Debug.log "hover" z
+      root = updateDatum (\record -> {record | highlight = True}) z
+        |> andThen goToRoot 
+        |> Maybe.map Tuple.first
+    in case root of
+      Just t -> { model | root = t }
+      Nothing -> model
+
   UnHighlight z ->
     let 
-        _ = Debug.log "hide" z
-      in 
-        model
+      _ = Debug.log "hover" z
+      root = updateDatum (\record -> {record | highlight = False}) z
+        |> andThen goToRoot 
+        |> Maybe.map Tuple.first
+    in case root of
+      Just t -> { model | root = t }
+      Nothing -> model
 
 
 view : Model -> Html Msg
@@ -80,8 +95,8 @@ view model =
   let 
     -- _ = Debug.log "trees" model.trees
     z : Zipper DisplayRecord
-    z = testTree |> rootConvert |> \s -> (s, [])
-    c = zipperToHTML z
+    z = model.root |> \s -> (s, [])
+    c = zipToRoot z
   in
     div [ ] [ 
         node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css" ] [],
@@ -92,7 +107,8 @@ view model =
 type alias DisplayRecord = {
     reducibility : Re,
     bracket: Bracket,
-    tree: ParsingTree
+    tree: ParsingTree,
+    highlight: Bool
   }
 
 walker : (ParsingTree -> F Re) -> (ParsingTree -> F Bracket) -> ParsingTree -> F (Re, Bracket)
@@ -108,7 +124,7 @@ convert : (ParsingTree -> F (Re, Bracket)) -> ParsingTree -> Tree DisplayRecord
 convert w tree = 
   let
     (F (re,bra) wLeft wRight) = w tree
-    record = { reducibility = re, bracket = bra, tree = tree }
+    record = { reducibility = re, bracket = bra, tree = tree, highlight = False }
     children = case tree of 
       Fork l r -> [ convert wLeft l, convert wRight r] 
       _ -> []
@@ -122,31 +138,33 @@ brhtml br = case br of
   YesBracket ->  \html -> [ text "(", html , text ")" ]
   NoBracket -> \html -> [ html ]
 
-container : Re -> List (Html msg) -> Html msg
-container re = case re of 
-  T -> span [ class "markHover", class "highlightReducible" ]
-  _ -> span []
+-- container : Re -> List (Html msg) -> Html msg
+-- container re = case re of 
+--   T -> span [ class "markHover", class "highlightReducible" ]
+--   _ -> span []
 
+onMouseOverStopPropagation : a -> Html.Attribute a
 onMouseOverStopPropagation msg = stopPropagationOn "mouseover" <| Json.succeed ( msg, True )
+onMouseOutStopPropagation : a -> Html.Attribute a
 onMouseOutStopPropagation msg = stopPropagationOn "mouseout" <| Json.succeed ( msg, True )
 eventNode : Re -> Zipper DisplayRecord -> List (Html Msg) -> Html Msg
 eventNode re z = case re of 
   T -> span [ class "markHover", class "highlightReducible", onClickStopPropagation (Reduce z), onMouseOverStopPropagation (Highlight z) , onMouseOutStopPropagation (UnHighlight z)]
   _ -> span []
 
-treeToHTML : Tree DisplayRecord -> Html Msg
-treeToHTML (Tree { reducibility, bracket, tree } forests) = 
-  let
-    content = case tree of 
-      Var v -> [ text v ]
-      Atom a -> [ text a ]
-      _ -> List.map treeToHTML forests |> List.intersperse (text " ")
+-- treeToHTML : Tree DisplayRecord -> Html Msg
+-- treeToHTML (Tree { reducibility, bracket, tree } forests) = 
+--   let
+--     content = case tree of 
+--       Var v -> [ text v ]
+--       Atom a -> [ text a ]
+--       _ -> List.map treeToHTML forests |> List.intersperse (text " ")
 
-  in content |> span [] >> brhtml bracket >> container reducibility
+--   in content |> span [] >> brhtml bracket >> container reducibility
 
 zipperToHTML : Zipper DisplayRecord -> Html Msg
 zipperToHTML z = case z of
-  (Tree { reducibility, bracket, tree } _, _) -> 
+  (Tree { reducibility, bracket, tree, highlight } _, _) -> 
     let
       content = case tree of 
         Var v -> [ text v ]
@@ -158,4 +176,23 @@ zipperToHTML z = case z of
           in case (zipperLeft, zipperRight) of 
             (Just zl, Just zr) -> [zipperToHTML zl, text " ", zipperToHTML zr]
             _ -> []
-    in content |> span [] >> brhtml bracket >> eventNode reducibility z
+    in content |> span [] >> brhtml bracket >> eventNode reducibility z >> highlightNode highlight
+
+highlightNode : Bool -> Html msg -> Html msg
+highlightNode highlight = if highlight then \x -> span [ style "background-color" "red" ] [x] else \x -> span [][x]
+
+-- rootTraversal : RootTree -> Html Msg
+-- rootTraversal root = 
+
+type alias ZipperRoot = Zipper DisplayRecord
+zipToRoot : ZipperRoot -> Html Msg
+zipToRoot rootZipper = case rootZipper of
+  (Tree _ children, _) -> 
+    let
+      htmls = List.length children 
+        |> List.range 0 
+        |> List.map ((\i -> goToChild i rootZipper) >> Maybe.map zipperToHTML)      
+        |> Maybe.Extra.values
+        |> List.map (\html -> div [] [html])
+    in span [] htmls
+
