@@ -21,7 +21,7 @@ main = Browser.sandbox { init = init, update = update, view = view }
 type Mode = ModeNoSelected | ModeSelected Line
 type alias Model = {
     mode: Mode, 
-    lines: List (Line, Maybe DisplayStructure)
+    trees: List Tree
   }
 
 type Tree = Var String | Atom String | Fork Tree Tree
@@ -167,7 +167,7 @@ clickTree4 = Fork
 init : Model
 init = {
     mode = ModeNoSelected, 
-    lines = List.map (\f -> Tuple.pair f Nothing) [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree4 ]
+    trees = [ testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree4 ]
   }
 
 print : Tree -> String
@@ -213,64 +213,53 @@ type alias Line = Tree
 type Msg = TreeClicked Tree | LineClicked Line | HighlightBlock Tree
 
 update : Msg -> Model -> Model
-update msg model = case model.mode of
-  ModeNoSelected -> case msg of
-    LineClicked line -> { model | mode = ModeSelected line }
-    HighlightBlock t -> let _ = Debug.log "hi" t in model
-    _ -> model
-  ModeSelected line -> case msg of 
-    TreeClicked tree ->
-      let
-        _ = Debug.log "this tree is clicked" tree
-      in 
-        { model | mode = ModeNoSelected }
-    _ -> model
+update msg model = model
 
 -- VIEW
-type Reducibility = Atomic | Head | Tail Tree
-type DisplayBracket = WithBracket | WithoutBracket
-type DisplayTree = Node String | Branch DisplayBracket (Reducibility, DisplayTree) (Reducibility, DisplayTree)
-type alias DisplayStructure = (Reducibility, DisplayTree)
+-- type Reducibility = Atomic | Head | Tail Tree
+-- type DisplayBracket = WithBracket | WithoutBracket
+-- type DisplayTree = Node String | Branch DisplayBracket (Reducibility, DisplayTree) (Reducibility, DisplayTree)
+-- type alias DisplayStructure = (Reducibility, DisplayTree)
 
--- There could be a better container type for Bracket but whatever
-unBracket : DisplayTree -> DisplayTree
-unBracket dtree = case dtree of
-  Node s -> Node s
-  Branch _ l r -> Branch WithoutBracket l r
+-- -- There could be a better container type for Bracket but whatever
+-- unBracket : DisplayTree -> DisplayTree
+-- unBracket dtree = case dtree of
+--   Node s -> Node s
+--   Branch _ l r -> Branch WithoutBracket l r
 
-display : Reducibility -> Tree -> DisplayStructure
-display red tree = 
-  case tree of 
-      Atom s -> (red, Node s)
-      Var v -> (red, Node v)
-      Fork l r -> 
-        let           
-          morphismRed = case l of
-            Atom _ -> Atomic
-            _ -> red
+-- display : Reducibility -> Tree -> DisplayStructure
+-- display red tree = 
+--   case tree of 
+--       Atom s -> (red, Node s)
+--       Var v -> (red, Node v)
+--       Fork l r -> 
+--         let           
+--           morphismRed = case l of
+--             Atom _ -> Atomic
+--             _ -> red
 
-          (lRed, rRed) = if morphismRed == Atomic then (Atomic, Atomic) else (Head, Tail r)
-          bracket = case l of
-             Var _ -> WithoutBracket
-             _ -> WithBracket
+--           (lRed, rRed) = if morphismRed == Atomic then (Atomic, Atomic) else (Head, Tail r)
+--           bracket = case l of
+--              Var _ -> WithoutBracket
+--              _ -> WithBracket
 
-          left = display lRed l
-          right = display rRed r
-        in (red, Branch bracket left right)
+--           left = display lRed l
+--           right = display rRed r
+--         in (red, Branch bracket left right)
 
-displayTree : DisplayStructure -> Html Msg
-displayTree (red, dt) = 
-  let
-    (eventContainer, hoverDetector) = case red of
-      Tail t -> (span [ class "markHover", class "highlightReducible", onClick (TreeClicked t) ], text >> List.singleton >> span [onMouseEnter (HighlightBlock t)] )
-      _ -> ( span [], text >> List.singleton >> span [] )
+-- displayTree : DisplayStructure -> Html Msg
+-- displayTree (red, dt) = 
+--   let
+--     (eventContainer, hoverDetector) = case red of
+--       Tail t -> (span [ class "markHover", class "highlightReducible", onClick (TreeClicked t) ], text >> List.singleton >> span [onMouseEnter (HighlightBlock t)] )
+--       _ -> ( span [], text >> List.singleton >> span [] )
 
-    contentHtml = case dt of
-        Node s -> [ text s ]
-        Branch bracket left right -> let content = [displayTree left, hoverDetector " ", displayTree right] in case bracket of
-          WithBracket -> (hoverDetector "(") :: content ++ [hoverDetector ")"]
-          WithoutBracket -> content 
-  in contentHtml |> eventContainer
+--     contentHtml = case dt of
+--         Node s -> [ text s ]
+--         Branch bracket left right -> let content = [displayTree left, hoverDetector " ", displayTree right] in case bracket of
+--           WithBracket -> (hoverDetector "(") :: content ++ [hoverDetector ")"]
+--           WithoutBracket -> content 
+--   in contentHtml |> eventContainer
   
             
 project : Dict String Tree -> Tree -> Tree
@@ -288,21 +277,25 @@ respond pattern input replaced = case match pattern input of
   InvalidMatch t1 t2 -> Err ("Cannot match" ++ (print t1) ++ "with" ++ (print t2))
   VariableCollision v t1 t2 -> Err ("Variable" ++ v ++ "is set to both" ++ (print t1) ++ "and" ++ (print t2))
 
-toDiv : Mode -> (Line, Maybe DisplayStructure) -> Html Msg
-toDiv mode (line, cachedDisplayStructure) = 
-  let
-    lineClickHandler = case mode of
-      ModeSelected _ -> empty
-      ModeNoSelected -> onClick (LineClicked line)
-    displayStructure = case cachedDisplayStructure of
-      Nothing ->  display Head line
-      Just ds -> ds
-  in displayStructure |> Tuple.mapSecond unBracket >> displayTree >> List.singleton >> div [ lineClickHandler , class "line" ]
+-- toDiv : Mode -> (Line, Maybe DisplayStructure) -> Html Msg
+-- toDiv mode (line, cachedDisplayStructure) = 
+--   let
+--     lineClickHandler = case mode of
+--       ModeSelected _ -> empty
+--       ModeNoSelected -> onClick (LineClicked line)
+--     displayStructure = case cachedDisplayStructure of
+--       Nothing ->  display Head line
+--       Just ds -> ds
+--   in displayStructure |> Tuple.mapSecond unBracket >> displayTree >> List.singleton >> div [ lineClickHandler , class "line" ]
 
 view : Model -> Html Msg
 view model = 
   let
-    treeDivs = List.map (toDiv model.mode) model.lines
+    -- treeDivs = List.map (toDiv model.mode) model.lines
+    t =  testTree |> toDTree >> toHTML 
+    _ = Debug.log "p" (print testTree)
+    _ = Debug.log "tree" t
+    treeDiv  = t |> List.singleton
     barText = case model.mode of
       ModeNoSelected -> "SELECT a line as material"
       ModeSelected line -> "Selected > " ++ (print line)
@@ -310,6 +303,77 @@ view model =
     div [ ] [ 
         node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css" ] [],
         node "link" [ attribute "rel" "stylesheet", attribute "href" "//cdn.jsdelivr.net/gh/tonsky/FiraCode@5.2/distr/fira_code.css" ] [],
-        div [] treeDivs,
+        div [] treeDiv,
         div [ class "bar" ] [ text barText ]
       ]
+
+
+type Treelike o = One o | Two o (Treelike o) (Treelike o)
+zipTree : Treelike a -> Treelike b -> Treelike (a,b)
+zipTree ta tb = case (ta, tb) of
+  (One a, One b) -> One (a,b)
+  (One a, Two b _ _) -> One (a,b)
+  (Two a _ _, One b) -> One (a,b)
+  (Two a la ra, Two b lb rb) -> Two (a,b) (zipTree la lb) (zipTree ra rb)
+
+type F a = F a (Tree -> F a) (Tree -> F a)
+show : Tree -> (Tree -> F a)  -> Treelike a
+show tree f = 
+  let
+    (F m g h) = f tree
+  in case tree of
+    Atom s -> One m
+    Var v -> One m
+    Fork l r -> Two m (show l g) (show r h)
+
+type Bracket = YesBracket | NoBracket
+mkBracket : Tree -> F Bracket
+mkBracket tree = case tree of
+  Fork (Atom _) _ -> F YesBracket mkBracket mkBracket
+  Fork (Fork _ _) _ -> F YesBracket mkBracket mkBracket
+  _ -> F NoBracket mkBracket mkBracket
+
+mkTree : Tree -> F (Maybe String)
+mkTree tree = case tree of
+  Fork _ _ -> F Nothing mkTree mkTree
+  Atom a -> F (Just a) mkTree mkTree
+  Var v -> F (Just v) mkTree mkTree
+
+type Re = A | H | T
+dec : Re -> Tree -> F Re
+dec x t = case (x,t) of 
+  (A, _) -> F x (dec A) (dec A)
+  (_, Fork (Atom _) _) -> F x (dec A) (dec A)
+  (_, Atom _) -> F x (dec x) (dec x)
+  (_, Var _) -> F x (dec x) (dec x)
+  _ -> F x (dec H) (dec T)
+mkRe : Tree -> F Re
+mkRe = dec T
+
+type alias DTree = Treelike (Bracket, (Re, Maybe String))
+toDTree : Tree -> Treelike (Bracket, (Re, Maybe String))
+toDTree tree = 
+  let
+    f = show tree
+    bracketT = f mkBracket
+    reT = f mkRe
+    cT = f mkTree
+    t = zipTree bracketT <| zipTree reT cT
+
+  in t
+
+brhtml : Bracket -> Html Msg -> List (Html Msg)
+brhtml br = case br of 
+  YesBracket -> \html -> [ text "(", html, text ")" ]
+  NoBracket -> \html -> [ html ]
+
+container : Re -> List (Html msg) -> Html msg
+container re = case re of 
+  T -> span [ class "markHover", class "highlightReducible" ]
+  _ -> span []
+
+toHTML : Treelike (Bracket, (Re, Maybe String)) -> Html Msg
+toHTML tree = case tree of
+  One (bracket, (re, Just s)) -> text s |> brhtml bracket >> container re
+  Two (bracket, (re, Nothing)) l r -> span [] [toHTML l, text " ", toHTML r] |> brhtml bracket >> container re
+  _ -> span [][]
