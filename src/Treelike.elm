@@ -1,8 +1,8 @@
 module Treelike exposing (..)
-import Tree exposing (Tree(..))
+import ParsingTree exposing (ParsingTree(..))
 
 type Treelike o = One o | Two o (Treelike o) (Treelike o)
-type F a = F a (Tree -> F a) (Tree -> F a)
+type F a = F a (ParsingTree -> F a) (ParsingTree -> F a)
 type Bracket = YesBracket | NoBracket
 type Re = A | H | T
 
@@ -19,7 +19,7 @@ zipTree ta tb = case (ta, tb) of
   (Two a _ _, One b) -> One (a,b)
   (Two a la ra, Two b lb rb) -> Two (a,b) (zipTree la lb) (zipTree ra rb)
 
-label : Tree -> (Tree -> F a)  -> Treelike a
+label : ParsingTree -> (ParsingTree -> F a)  -> Treelike a
 label tree f = 
   let
     (F m g h) = f tree
@@ -28,29 +28,29 @@ label tree f =
     Var _ -> One m
     Fork l r -> Two m (label l g) (label r h)
 
-mkBracket : Tree -> F Bracket
+mkBracket : ParsingTree -> F Bracket
 mkBracket tree = case tree of
   Fork (Atom _) _ -> F YesBracket mkBracket mkBracket
   Fork (Fork _ _) _ -> F YesBracket mkBracket mkBracket
   _ -> F NoBracket mkBracket mkBracket
 
-mkTree : Tree -> F (Maybe String)
+mkTree : ParsingTree -> F (Maybe String)
 mkTree tree = case tree of
   Fork _ _ -> F Nothing mkTree mkTree
   Atom a -> F (Just a) mkTree mkTree
   Var v -> F (Just v) mkTree mkTree
 
-dec : Re -> Tree -> F Re
+dec : Re -> ParsingTree -> F Re
 dec x t = case (x,t) of 
   (A, _) -> F x (dec A) (dec A)
   (_, Fork (Atom _) _) -> F x (dec A) (dec A)
   (_, Atom _) -> F x (dec x) (dec x)
   (_, Var _) -> F x (dec x) (dec x)
   _ -> F x (dec H) (dec T)
-mkRe : Tree -> F Re
+mkRe : ParsingTree -> F Re
 mkRe = dec T
 
-toDTree : Tree -> Treelike (Bracket, (Re, Maybe String))
+toDTree : ParsingTree -> Treelike (Bracket, (Re, Maybe String))
 toDTree tree = 
   let
     f = label tree
@@ -72,5 +72,5 @@ toRecord (br, (re, str)) = {
     value = str
   }
 
-toDisplayTree : Tree -> Treelike { bracket : Bracket, reducibility : Re, value : Maybe String}
+toDisplayTree : ParsingTree -> Treelike { bracket : Bracket, reducibility : Re, value : Maybe String}
 toDisplayTree = toDTree >> (map toRecord)

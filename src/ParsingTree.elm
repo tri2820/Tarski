@@ -1,13 +1,13 @@
-module Tree exposing (..)
+module ParsingTree exposing (..)
 import Dict exposing (Dict)
 import Dict
 import Maybe.Extra
 
-type Tree = Var String | Atom String | Fork Tree Tree
-type MatchResult = Match (Dict String Tree) | InvalidMatch Tree Tree | VariableCollision String Tree Tree
-type RespondResult = Result Tree | Err String
+type ParsingTree = Var String | Atom String | Fork ParsingTree ParsingTree
+type MatchResult = Match (Dict String ParsingTree) | InvalidMatch ParsingTree ParsingTree | VariableCollision String ParsingTree ParsingTree
+type RespondResult = Result ParsingTree | Err String
 
-print : Tree -> String
+print : ParsingTree -> String
 print tree = case tree of 
   Atom s -> s
   Var v -> v
@@ -21,7 +21,7 @@ notSame v other_v = if other_v == v then Nothing else Just (other_v, v)
 findInDict : Dict comparable c -> comparable -> c -> Maybe (c, c)
 findInDict d k v = Dict.get k d |> Maybe.andThen (notSame v)
 
-match : Tree -> Tree -> MatchResult
+match : ParsingTree -> ParsingTree -> MatchResult
 match p a = case p of 
   Var v -> Match (Dict.singleton v a)
   Atom s -> case a of 
@@ -43,7 +43,7 @@ match p a = case p of
           (err, _) -> err
     _ -> InvalidMatch p a
 
-project : Dict String Tree -> Tree -> Tree
+project : Dict String ParsingTree -> ParsingTree -> ParsingTree
 project d t = case t of
     (Atom _) -> t
     (Fork a b) -> Fork (project d a) (project d b)
@@ -51,8 +51,7 @@ project d t = case t of
       Nothing -> Var v
       Just varTree -> varTree
 
-
-respond : Tree -> Tree -> Tree -> RespondResult
+respond : ParsingTree -> ParsingTree -> ParsingTree -> RespondResult
 respond pattern input replaced = case match pattern input of
   Match d -> Result (project d replaced)
   InvalidMatch t1 t2 -> Err ("Cannot match" ++ (print t1) ++ "with" ++ (print t2))

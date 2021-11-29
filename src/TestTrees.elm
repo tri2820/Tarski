@@ -1,7 +1,7 @@
 module TestTrees exposing (..)
-import Tree exposing (Tree(..))
+import ParsingTree exposing (ParsingTree(..))
 
-testTree : Tree
+testTree : ParsingTree
 testTree = Fork 
   (Fork 
     (Atom "A")
@@ -32,7 +32,7 @@ testTree = Fork
     )
   )
 
-treePattern : Tree
+treePattern : ParsingTree
 treePattern = Fork 
   (Fork 
     (Atom "A")
@@ -48,7 +48,7 @@ treePattern = Fork
     )
   )
 
-treeToBeReplaced : Tree
+treeToBeReplaced : ParsingTree
 treeToBeReplaced = Fork
   (Fork 
     (Fork 
@@ -63,7 +63,7 @@ treeToBeReplaced = Fork
     (Var "k")
   )
 
-clickTree : Tree 
+clickTree : ParsingTree 
 clickTree = Fork
   (Fork 
     (Fork
@@ -89,7 +89,7 @@ clickTree = Fork
     )
   )
 
-clickTree2 : Tree 
+clickTree2 : ParsingTree 
 clickTree2 = Fork
   (Fork 
     (Fork
@@ -108,7 +108,7 @@ clickTree2 = Fork
     (Var "k")
   )
 
-clickTree3 : Tree 
+clickTree3 : ParsingTree 
 clickTree3 = Fork
   (Atom "A")
 
@@ -124,7 +124,7 @@ clickTree3 = Fork
     )
   )
 
-clickTree4 : Tree 
+clickTree4 : ParsingTree 
 clickTree4 = Fork
   (Atom "A")
 
