@@ -33,6 +33,9 @@ import ParsingTree exposing (print)
 import ParsingTree exposing (match)
 import TestTrees exposing (treePattern)
 import ParsingTree exposing (respond)
+import MultiwayTreeZipper exposing (goUp)
+import MultiwayTree exposing (insertChild)
+import MultiwayTree exposing (length)
 
 main : Program () Model Msg
 main = Browser.sandbox { init = init, update = update, view = view }
@@ -55,8 +58,10 @@ emptyDisplayRecord : DisplayRecord
 emptyDisplayRecord = {
     reducibility = T,
     bracket = NoBracket,
-    tree = Fork (Atom "") (Atom ""),
-    isHighlight = False
+    -- Hacky empty node
+    tree = Atom "root",
+    isHighlight = False,
+    newTheorem = Atom ""
   }
 
 init : Model
@@ -77,17 +82,27 @@ getParsingTree : Zipper DisplayRecord -> ParsingTree
 getParsingTree z = case z of
   (Tree { tree } _, _) -> tree
 
+getInputAndResult : Zipper DisplayRecord -> (ParsingTree, ParsingTree)
+getInputAndResult (Tree { tree, newTheorem } _, _) = ( tree, newTheorem )
+
+-- infer tree new = case tree of
+--    Fork l r -> 
+
 update : Msg -> Model -> Model
 update msg model = case msg of
-  Reduce block resultTree -> case model.mode of
+  Reduce block _ -> case model.mode of
     ModeHolding line -> 
-      let
-        patternTree = getParsingTree block
-        inputTree = getParsingTree line
+        let
+          unhighlightModel = highlight False model block
+          (tree, newTheorem) = getInputAndResult block
+          inputTree = getParsingTree line
+          result = respond tree inputTree newTheorem
+          newRoot = case result of 
+            Ok newTheoremAfterSub -> insertChild (rootConvert newTheoremAfterSub) unhighlightModel.root 
+            Err _ -> unhighlightModel.root 
 
-        result = respond patternTree inputTree resultTree
-      in 
-        highlight False { model | mode = ModeIdle (Just result) } block
+        in { unhighlightModel | root =  newRoot, mode = ModeIdle (Just result) } 
+          
     _ -> model
   HighlightBlock z -> case model.mode of 
     ModeHolding _ -> highlight True model z
@@ -142,23 +157,42 @@ type alias DisplayRecord = {
     reducibility : Re,
     bracket: Bracket,
     tree: ParsingTree,
-    isHighlight: Bool
+    isHighlight: Bool,
+    newTheorem: ParsingTree
   }
 
-walker : (ParsingTree -> F Re) -> (ParsingTree -> F Bracket) -> ParsingTree -> F (Re, Bracket)
-walker mkR mkBra tree = 
+walker : (ParsingTree -> F Re) -> (ParsingTree -> F Bracket) -> (ParsingTree -> F UpdatingInformation) -> ParsingTree -> F (Re, Bracket, UpdatingInformation)
+walker mkR mkBra mkSib tree = 
   let
     (F redu leftReduF rightReduF) = mkR tree
     (F bracket leftBracketF rightBracketF) = mkBra tree
-  in F (redu, bracket) (walker leftReduF leftBracketF) (walker rightReduF rightBracketF)
-rootWalker : ParsingTree -> F (Re, Bracket)
-rootWalker = walker mkRe mkBracket
+    (F sibling leftSiblingF rightSiblingF) = mkSib tree
+  in F (redu, bracket, sibling) (walker leftReduF leftBracketF leftSiblingF) (walker rightReduF rightBracketF rightSiblingF)
+rootWalker : ParsingTree -> F (Re, Bracket, UpdatingInformation)
+rootWalker = walker mkRe mkBracket mkSibling
 
-convert : (ParsingTree -> F (Re, Bracket)) -> ParsingTree -> Tree DisplayRecord
+-- new grand parent, sibling
+type alias UpdatingInformation = (ParsingTree, ParsingTree)
+
+siblingWalker : UpdatingInformation -> ParsingTree -> F UpdatingInformation
+siblingWalker (newGrandFather, sibling) current = case current of 
+  Fork l r -> 
+    let
+      forLeft = (Fork sibling r, r)
+      forRight = (Fork l sibling, l)
+    in F (newGrandFather, sibling) (siblingWalker forLeft) (siblingWalker forRight)
+  -- Not gonna happen
+  _ -> F (newGrandFather, sibling) (siblingWalker (newGrandFather, newGrandFather)) (siblingWalker (newGrandFather, newGrandFather))
+
+mkSibling : ParsingTree -> F UpdatingInformation
+mkSibling = siblingWalker (Atom "", Atom "")
+
+
+convert : (ParsingTree -> F (Re, Bracket, UpdatingInformation)) -> ParsingTree -> Tree DisplayRecord
 convert w tree = 
   let
-    (F (re,bra) wLeft wRight) = w tree
-    record = { reducibility = re, bracket = bra, tree = tree, isHighlight = False }
+    (F (re, bra, (newTheorem, _)) wLeft wRight) = w tree
+    record = { reducibility = re, bracket = bra, tree = tree, isHighlight = False, newTheorem = newTheorem }
     children = case tree of 
       Fork l r -> [ convert wLeft l, convert wRight r] 
       _ -> []
