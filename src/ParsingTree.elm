@@ -5,7 +5,7 @@ import Maybe.Extra
 
 type ParsingTree = Var String | Atom String | Fork ParsingTree ParsingTree
 type MatchResult = Match (Dict String ParsingTree) | InvalidMatch ParsingTree ParsingTree | VariableCollision String ParsingTree ParsingTree
-type RespondResult = Result ParsingTree | Err String
+-- type RespondResult = Result ParsingTree | Err String
 
 print : ParsingTree -> String
 print tree = case tree of 
@@ -51,8 +51,8 @@ project d t = case t of
       Nothing -> Var v
       Just varTree -> varTree
 
-respond : ParsingTree -> ParsingTree -> ParsingTree -> RespondResult
+respond : ParsingTree -> ParsingTree -> ParsingTree -> Result String ParsingTree
 respond pattern input replaced = case match pattern input of
-  Match d -> Result (project d replaced)
-  InvalidMatch t1 t2 -> Err ("Cannot match" ++ (print t1) ++ "with" ++ (print t2))
-  VariableCollision v t1 t2 -> Err ("Variable" ++ v ++ "is set to both" ++ (print t1) ++ "and" ++ (print t2))
+  Match d -> Ok (project d replaced)
+  InvalidMatch t1 t2 -> Err ("Cannot match " ++ (print t1) ++ " with " ++ (print t2))
+  VariableCollision v t1 t2 -> Err ("Variable " ++ v ++ " is set to both " ++ (print t1) ++ " and " ++ (print t2))

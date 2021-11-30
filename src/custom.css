@@ -16,9 +16,11 @@
 }
 
 .line {
-    font-family: 'Fira Code', monospace;
+    font-family: 'Fira Code';
+    font-size: 30px;
 }
 
 .bar {
     font-family: 'Fira Code', monospace;
+    font-size: 30px;
 }
