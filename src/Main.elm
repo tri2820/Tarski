@@ -23,25 +23,28 @@ import TestTrees exposing (clickTree2)
 import TestTrees exposing (clickTree3)
 import TestTrees exposing (treeToBeReplaced)
 import MultiwayTreeZipper exposing (Zipper)
-import Html.Events exposing (onClick)
 import Html.Events.Extra exposing (onClickStopPropagation)
 import Html.Events exposing (stopPropagationOn)
-import Html.Events exposing (onMouseEnter)
-import Html.Events exposing (onMouseOver, on)
 import Json.Decode as Json
 import Maybe.Extra
 import MultiwayTreeZipper exposing (goToRoot)
 import MultiwayTreeZipper exposing (updateDatum)
 import Html.Attributes exposing (style)
+import ParsingTree exposing (print)
 
 main : Program () Model Msg
 main = Browser.sandbox { init = init, update = update, view = view }
 
-type Mode = ModeNoSelected
+
+
+type Mode = ModeIdle | ModeHolding LinePointer
 
 type alias RootTree = Tree DisplayRecord
+type alias RootPointer = Zipper DisplayRecord
+type alias BlockPointer = Zipper DisplayRecord
+type alias LinePointer = Zipper DisplayRecord
 type alias Model = {
-    -- lines : List (ParsingTree, Maybe (Tree DisplayRecord))
+    mode : Mode,
     root : RootTree
     -- parsingTrees : List (ParsingTree)
   }
@@ -51,41 +54,52 @@ emptyDisplayRecord = {
     reducibility = T,
     bracket = NoBracket,
     tree = Fork (Atom "") (Atom ""),
-    highlight = False
+    isHighlight = False
   }
 
 init : Model
 init = {
-  -- parsingTrees = [],
+  mode = ModeIdle,
   root =  [testTree, clickTree, clickTree2, clickTree3, clickTree3, treeToBeReplaced] |> List.map rootConvert >> Tree emptyDisplayRecord
     -- lines = List.map (\s -> (s, Nothing)) [testTree, clickTree, clickTree2, clickTree3, clickTree3, treeToBeReplaced]
   }
 
-type Msg = Reduce (Zipper DisplayRecord) | Highlight (Zipper DisplayRecord) | UnHighlight (Zipper DisplayRecord)
+type Msg = Reduce BlockPointer 
+  | HighlightBlock BlockPointer 
+  | UnHighlightBlock BlockPointer 
+  | Choose LinePointer 
+  | HighlightLine LinePointer 
+  | UnHighlightLine LinePointer 
 update : Msg -> Model -> Model
 update msg model = case msg of
-  Reduce z -> 
+  Reduce z -> case model.mode of
+    ModeHolding line -> highlight False { model | mode = ModeIdle } z
+    _ -> model
+  HighlightBlock z -> case model.mode of 
+    ModeHolding _ -> highlight True model z
+    ModeIdle -> model
+  UnHighlightBlock z -> highlight False model z
+  Choose z -> case model.mode of 
+    ModeIdle -> highlight False { model | mode = ModeHolding z } z
+    _ -> model
+  HighlightLine z -> 
     let 
-      _ = Debug.log "z" z
-    in 
-      model
-  Highlight z ->
-    let 
-      _ = Debug.log "hover" z
-      root = updateDatum (\record -> {record | highlight = True}) z
+      _ = Debug.log "line hover" z
+    in
+      case model.mode of
+        ModeIdle -> highlight True model z
+        _ -> model
+  UnHighlightLine z -> highlight False model z
+     
+highlight : Bool -> Model -> Zipper DisplayRecord -> Model
+highlight isHighlight model z = 
+  let
+    updateHighlight = (\record -> { record | isHighlight = isHighlight })
+    root = updateDatum updateHighlight z
         |> andThen goToRoot 
         |> Maybe.map Tuple.first
-    in case root of
-      Just t -> { model | root = t }
-      Nothing -> model
-
-  UnHighlight z ->
-    let 
-      _ = Debug.log "hover" z
-      root = updateDatum (\record -> {record | highlight = False}) z
-        |> andThen goToRoot 
-        |> Maybe.map Tuple.first
-    in case root of
+  in 
+    case root of
       Just t -> { model | root = t }
       Nothing -> model
 
@@ -93,21 +107,28 @@ view : Model -> Html Msg
 view model = 
   let 
     -- _ = Debug.log "trees" model.trees
-    z : Zipper DisplayRecord
+    z : RootPointer
     z = model.root |> \s -> (s, [])
-    c = zipToRoot z
+    c = zipToRoot model.mode z
+    -- 
+    actionBarText = case model.mode of
+      ModeIdle -> "Choose a line by clicking"
+      ModeHolding (Tree {tree} _, _) -> "Match with " ++ print tree
+    actionBar = div [ class "bar" ] [text actionBarText]
+
   in
     div [ ] [ 
         node "link" [ attribute "rel" "stylesheet", attribute "href" "custom.css" ] [],
         node "link" [ attribute "rel" "stylesheet", attribute "href" "//cdn.jsdelivr.net/gh/tonsky/FiraCode@5.2/distr/fira_code.css" ] [],
-        c
+        c,
+        actionBar
       ]
 
 type alias DisplayRecord = {
     reducibility : Re,
     bracket: Bracket,
     tree: ParsingTree,
-    highlight: Bool
+    isHighlight: Bool
   }
 
 walker : (ParsingTree -> F Re) -> (ParsingTree -> F Bracket) -> ParsingTree -> F (Re, Bracket)
@@ -123,7 +144,7 @@ convert : (ParsingTree -> F (Re, Bracket)) -> ParsingTree -> Tree DisplayRecord
 convert w tree = 
   let
     (F (re,bra) wLeft wRight) = w tree
-    record = { reducibility = re, bracket = bra, tree = tree, highlight = False }
+    record = { reducibility = re, bracket = bra, tree = tree, isHighlight = False }
     children = case tree of 
       Fork l r -> [ convert wLeft l, convert wRight r] 
       _ -> []
@@ -141,14 +162,19 @@ onMouseOverStopPropagation : a -> Html.Attribute a
 onMouseOverStopPropagation msg = stopPropagationOn "mouseover" <| Json.succeed ( msg, True )
 onMouseOutStopPropagation : a -> Html.Attribute a
 onMouseOutStopPropagation msg = stopPropagationOn "mouseout" <| Json.succeed ( msg, True )
-eventNode : Re -> Zipper DisplayRecord -> List (Html Msg) -> Html Msg
-eventNode re z = case re of 
-  T -> span [ class "markHover", class "highlightReducible", onClickStopPropagation (Reduce z), onMouseOverStopPropagation (Highlight z) , onMouseOutStopPropagation (UnHighlight z)]
+eventNode : Mode -> Re -> RootPointer -> List (Html Msg) -> Html Msg
+eventNode mode re z = case (re, mode) of 
+  (T, ModeHolding _) -> span [
+      style "background-color" "rgba(0, 0, 255, 0.1)",
+      onClickStopPropagation (Reduce z),
+      onMouseOverStopPropagation (HighlightBlock z) , 
+      onMouseOutStopPropagation (UnHighlightBlock z)
+    ]
   _ -> span []
 
-zipperToHTML : Zipper DisplayRecord -> Html Msg
-zipperToHTML z = case z of
-  (Tree { reducibility, bracket, tree, highlight } _, _) -> 
+zipperToHTML : Mode -> RootPointer -> Html Msg
+zipperToHTML mode z = case z of
+  (Tree { reducibility, bracket, tree, isHighlight } _, _) -> 
     let
       content = case tree of 
         Var v -> [ text v ]
@@ -158,16 +184,26 @@ zipperToHTML z = case z of
             zipperLeft = goToChild 0 z
             zipperRight = goToChild 1 z
           in case (zipperLeft, zipperRight) of 
-            (Just zl, Just zr) -> [zipperToHTML zl, text " ", zipperToHTML zr]
+            (Just zl, Just zr) -> [ zipperToHTML mode zl, text " ", zipperToHTML mode zr]
             _ -> []
-    in content |> span [] >> brhtml bracket >> eventNode reducibility z >> highlightNode highlight
+    in content |> span [] >> brhtml bracket >> eventNode mode reducibility z >> highlightNode isHighlight
 
 highlightNode : Bool -> Html msg -> Html msg
-highlightNode highlight = if highlight then \x -> span [ style "background-color" "red" ] [x] else \x -> span [][x]
+highlightNode isHighlight = if isHighlight then \x -> span [ style "background-color" "rgba(255, 0, 0, 0.3)" ] [x] else \x -> span [][x]
 
-type alias ZipperRoot = Zipper DisplayRecord
-zipToRoot : ZipperRoot -> Html Msg
-zipToRoot rootZipper = case rootZipper of
+
+
+mkLine : Mode -> LinePointer -> List (Html.Attribute Msg)
+mkLine mode z = case mode of
+   ModeIdle -> [ 
+      onClickStopPropagation (Choose z), 
+      onMouseOverStopPropagation (HighlightLine z) , 
+      onMouseOutStopPropagation (UnHighlightLine z) 
+    ] 
+   _ -> []
+
+zipToRoot : Mode -> RootPointer -> Html Msg
+zipToRoot mode rootZipper = case rootZipper of
   (Tree _ children, _) -> 
     let
       htmls = List.length children 
@@ -175,9 +211,9 @@ zipToRoot rootZipper = case rootZipper of
         |> List.map (
             (\i -> goToChild i rootZipper) 
             >> Maybe.andThen (updateDatum (\record -> {record | bracket = NoBracket, reducibility = H})) 
-            >> Maybe.map zipperToHTML
+            >> Maybe.map (\z -> (z, zipperToHTML mode z))
             )
         |> Maybe.Extra.values
-        |> List.map (\html -> div [] [html])
-    in span [ style "font-size" "40px" ] htmls
+        |> List.map (\(z, html) -> div ((class "line")::(mkLine mode z)) [ html ])
+    in span [ ] htmls
 
