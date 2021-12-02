@@ -28,11 +28,43 @@ label tree f =
     Var _ -> One m
     Fork l r -> Two m (label l g) (label r h)
 
+-- read the last bracket, if this time it's a fork again font make bracket
+-- mkBracket : ParsingTree -> F Bracket
+-- mkBracket tree = case tree of
+--   Fork (Atom _) _ -> F NoBracket mkBracket mkBracket
+--   Fork (Fork _ _) _ -> F YesBracket mkBracket mkBracket
+--   -- Fork (Fork _ _) _ -> F NoBracket mkBracket mkBracket
+--   _ -> F NoBracket mkBracket mkBracket
+
+brack : Bracket -> ParsingTree -> F Bracket
+brack bracket tree = case tree of
+  Fork (Fork _ _) _ -> F bracket (brack YesBracket) (brack YesBracket)
+  Var _ -> F NoBracket (brack NoBracket) (brack NoBracket)
+  _ -> F bracket (brack NoBracket) (brack NoBracket)
+  
 mkBracket : ParsingTree -> F Bracket
-mkBracket tree = case tree of
-  Fork (Atom _) _ -> F YesBracket mkBracket mkBracket
-  Fork (Fork _ _) _ -> F YesBracket mkBracket mkBracket
-  _ -> F NoBracket mkBracket mkBracket
+mkBracket = brack NoBracket
+
+
+
+-- (P a b) c
+-- -> if it's inside an atom then no (T)
+-- B w z ... k (P a b) c
+-- (Atom b)(...)
+
+-- H (K h) ((P a b) c)
+-- H x ((P a b) c) ?
+-- H (x) ((P a b) c)
+-- Fork (...) (H, T)
+-- ... is fork
+
+
+-- InsideAtom, fork, atom left -> No
+-- Between u [(P a b) c]
+-- InsideAtom, fork -> Yes
+-- Between u ((x)(y)) c
+-- Between u ((P a b c) y) z
+-- 
 
 mkTree : ParsingTree -> F (Maybe String)
 mkTree tree = case tree of

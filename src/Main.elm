@@ -36,6 +36,10 @@ import ParsingTree exposing (respond)
 import MultiwayTreeZipper exposing (goUp)
 import MultiwayTree exposing (insertChild)
 import MultiwayTree exposing (length)
+import Tarski exposing (reflexivityOfConguence)
+import Tarski exposing (identityOfCongruence)
+import Tarski exposing (axioms)
+import Tarski exposing (testPasch)
 
 main : Program () Model Msg
 main = Browser.sandbox { init = init, update = update, view = view }
@@ -51,7 +55,6 @@ type alias LinePointer = Zipper DisplayRecord
 type alias Model = {
     mode : Mode,
     root : RootTree
-    -- parsingTrees : List (ParsingTree)
   }
 
 emptyDisplayRecord : DisplayRecord
@@ -67,7 +70,8 @@ emptyDisplayRecord = {
 init : Model
 init = {
   mode = ModeIdle Nothing,
-  root =  [testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree3 ] |> List.map rootConvert >> Tree emptyDisplayRecord
+  -- root =  [testTree, treePattern, treeToBeReplaced, clickTree, clickTree2, clickTree3, clickTree3 ] |> List.map rootConvert >> Tree emptyDisplayRecord
+  root =  axioms |> List.map rootConvert >> Tree emptyDisplayRecord
     -- lines = List.map (\s -> (s, Nothing)) [testTree, clickTree, clickTree2, clickTree3, clickTree3, treeToBeReplaced]
   }
 
@@ -178,14 +182,16 @@ siblingWalker : UpdatingInformation -> ParsingTree -> F UpdatingInformation
 siblingWalker (newGrandFather, sibling) current = case current of 
   Fork l r -> 
     let
-      forLeft = (Fork sibling r, r)
-      forRight = (Fork l sibling, l)
+      (forLeft, forRight) = case sibling of
+         Atom "NULLSibling" -> ((r,r), (l,l))
+         _ -> ((Fork sibling r, r), (Fork l sibling, l))
+      
     in F (newGrandFather, sibling) (siblingWalker forLeft) (siblingWalker forRight)
   -- Not gonna happen
   _ -> F (newGrandFather, sibling) (siblingWalker (newGrandFather, newGrandFather)) (siblingWalker (newGrandFather, newGrandFather))
 
 mkSibling : ParsingTree -> F UpdatingInformation
-mkSibling = siblingWalker (Atom "", Atom "")
+mkSibling = siblingWalker (Atom "NULLGrandFather", Atom "NULLSibling")
 
 
 convert : (ParsingTree -> F (Re, Bracket, UpdatingInformation)) -> ParsingTree -> Tree DisplayRecord
