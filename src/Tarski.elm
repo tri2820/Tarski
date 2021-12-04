@@ -21,6 +21,11 @@ between2 a b c = Fork
         (Fork b (Var c))
     )
 
+between3 a b c = Fork
+    (Atom "Between")
+    (Fork a (Fork b c))
+
+
 
 reflexivityOfConguence = congruence "x" "y" "y" "x"
 identityOfCongruence = Fork (is "x" "y") (congruence "x" "y" "z" "z")
@@ -50,6 +55,30 @@ testPasch1 = Fork (Fork (Atom "OK") (fourVar "u" "y" "v" "x"))
         ))
 
 twoPoint = Fork (Atom "TwoPoint")  (Fork (Var "y") (Var "x"))
+twoPointmade = Fork (Fork (Fork (Atom "TwoPoint")  (Fork (Var "y") (Var "x"))) (Var "y")) (Var "x")
+
+
+pointLowerDimensionA = Atom "PointLowerDimensionA"
+pointLowerDimensionB = Atom "PointLowerDimensionB"
+pointLowerDimensionC = Atom "PointLowerDimensionC"
+void = Var "void"
+lowerDimension1 = Fork void (between3 pointLowerDimensionA pointLowerDimensionB pointLowerDimensionC) 
+lowerDimension2 = Fork void (between3 pointLowerDimensionA pointLowerDimensionC pointLowerDimensionA) 
+lowerDimension3 = Fork void (between3 pointLowerDimensionC pointLowerDimensionA pointLowerDimensionB) 
+
+
+orlaw1 = Fork
+    (Fork (Fork (Var "d") (Fork (Atom "Or") (Var "b")) ) (Fork (Var "d") (Var "a")))
+    (Fork (Var "d") (Fork (Atom "Or") (Fork (Var "a") (Var "b"))))
+
+orlaw2 = Fork (Var "d") (Fork (Var "d") (Fork (Atom "Or") (Atom "Unit")))
+orlaw3 = Fork (Fork (Atom "Or") (Fork (Var "a") (Var "b"))) (Fork (Atom "Or") (Var "a"))
+unit = Atom "Unit"
+
+orAB = Fork (Atom "Or") (Fork (Var "a") (Var "b"))
+
+orabc a b c = Fork (Atom "Or") (Fork a (Fork b c))
+upperDimension = Fork (Fork (Fork (Fork (orabc (between "x" "y" "z") (between "y" "z" "x") (between "z" "x" "y") ) (Fork void (is "u" "v"))) (congruence "z" "u" "z" "v")) (congruence "y" "u" "y" "v")) (congruence "x" "u" "x" "v")
 
 axioms = [
     reflexivityOfConguence,
@@ -57,8 +86,17 @@ axioms = [
     transitivityOfCongruence,
     identityOfBetweenness,
     pasch,
-    testPasch,
-    testPasch1,
-    twoPoint
+    pointLowerDimensionA,
+    
+    pointLowerDimensionB,
+    
+    pointLowerDimensionC,
+    lowerDimension1, lowerDimension2, lowerDimension3,
+    upperDimension,
+    orlaw1,
+    orlaw2,
+    orlaw3,
+    unit
+
     ]
     

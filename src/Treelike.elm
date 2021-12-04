@@ -41,30 +41,9 @@ brack bracket tree = case tree of
   Fork (Fork _ _) _ -> F bracket (brack YesBracket) (brack YesBracket)
   Var _ -> F NoBracket (brack NoBracket) (brack NoBracket)
   _ -> F bracket (brack NoBracket) (brack NoBracket)
-  
+
 mkBracket : ParsingTree -> F Bracket
 mkBracket = brack NoBracket
-
-
-
--- (P a b) c
--- -> if it's inside an atom then no (T)
--- B w z ... k (P a b) c
--- (Atom b)(...)
-
--- H (K h) ((P a b) c)
--- H x ((P a b) c) ?
--- H (x) ((P a b) c)
--- Fork (...) (H, T)
--- ... is fork
-
-
--- InsideAtom, fork, atom left -> No
--- Between u [(P a b) c]
--- InsideAtom, fork -> Yes
--- Between u ((x)(y)) c
--- Between u ((P a b c) y) z
--- 
 
 mkTree : ParsingTree -> F (Maybe String)
 mkTree tree = case tree of

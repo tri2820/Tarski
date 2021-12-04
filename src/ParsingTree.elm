@@ -48,6 +48,7 @@ project d t = case t of
     (Atom _) -> t
     (Fork a b) -> Fork (project d a) (project d b)
     (Var v) -> case Dict.get v d of 
+      -- Find in the thing used to replaced, if there is a match then switch to a new variable
       Nothing -> Var v
       Just varTree -> varTree
 
